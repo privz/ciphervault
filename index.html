@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Client-side AES-256-GCM message encryption tool"
+    >
+
+    <title>CipherVault</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <div class="background-grid"></div>
+    <div class="background-glow glow-one"></div>
+    <div class="background-glow glow-two"></div>
+
+    <main class="app">
+
+        <header class="header">
+
+            <div class="brand">
+
+                <div class="logo">
+                    <span>⌁</span>
+                </div>
+
+                <div>
+                    <h1>CipherVault</h1>
+
+                    <p>
+                        CLIENT-SIDE MESSAGE ENCRYPTION
+                    </p>
+                </div>
+
+            </div>
+
+            <div class="security-status">
+                <span class="status-dot"></span>
+                LOCAL ENCRYPTION
+            </div>
+
+        </header>
+
+
+        <section class="panel">
+
+            <div class="mode-selector">
+
+                <button
+                    id="encryptMode"
+                    class="mode active"
+                >
+                    <span>Encrypt</span>
+                </button>
+
+                <button
+                    id="decryptMode"
+                    class="mode"
+                >
+                    <span>Decrypt</span>
+                </button>
+
+            </div>
+
+
+            <div class="field">
+
+                <div class="field-header">
+
+                    <label for="input">
+                        INPUT
+                    </label>
+
+                    <span
+                        id="inputCounter"
+                        class="counter"
+                    >
+                        0 chars
+                    </span>
+
+                </div>
+
+                <textarea
+                    id="input"
+                    spellcheck="false"
+                    placeholder="Enter message to encrypt..."
+                ></textarea>
+
+            </div>
+
+
+            <div class="field">
+
+                <div class="field-header">
+
+                    <label for="password">
+                        SECRET KEY
+                    </label>
+
+                    <span class="hint">
+                        PBKDF2 → AES-256-GCM
+                    </span>
+
+                </div>
+
+
+                <div class="password-wrapper">
+
+                    <input
+                        id="password"
+                        type="password"
+                        placeholder="Enter secret key"
+                        autocomplete="new-password"
+                    >
+
+                    <button
+                        id="togglePassword"
+                        class="icon-button"
+                        type="button"
+                        aria-label="Show password"
+                    >
+                        ◉
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <button
+                id="process"
+                class="process-button"
+            >
+
+                <span class="button-glow"></span>
+
+                <span class="button-content">
+
+                    <span
+                        id="processIcon"
+                        class="process-icon"
+                    >
+                        ◇
+                    </span>
+
+                    <span id="processText">
+                        ENCRYPT MESSAGE
+                    </span>
+
+                </span>
+
+            </button>
+
+
+            <div class="divider">
+                <span></span>
+                OUTPUT
+                <span></span>
+            </div>
+
+
+            <div class="field output-field">
+
+                <textarea
+                    id="output"
+                    spellcheck="false"
+                    readonly
+                    placeholder="Encrypted Base64 output will appear here..."
+                ></textarea>
+
+                <div class="output-actions">
+
+                    <button
+                        id="copy"
+                        class="secondary-button"
+                    >
+                        COPY
+                    </button>
+
+                    <button
+                        id="clear"
+                        class="secondary-button danger"
+                    >
+                        CLEAR
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="statusContainer"
+                class="status-container"
+            >
+
+                <span
+                    id="statusIndicator"
+                    class="status-indicator"
+                ></span>
+
+                <span id="status">
+                    READY
+                </span>
+
+            </div>
+
+        </section>
+
+
+        <footer>
+
+            <div>
+                AES-256-GCM
+                <span>•</span>
+                PBKDF2-SHA256
+                <span>•</span>
+                BASE64
+            </div>
+
+            <p>
+                Encryption is performed locally in your browser.
+            </p>
+
+        </footer>
+
+    </main>
+
+    <script src="app.js"></script>
+
+</body>
+</html>
