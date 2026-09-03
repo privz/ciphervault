@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en" data-theme="dark">
+
 <head>
+
     <meta charset="UTF-8">
 
     <meta
@@ -10,68 +12,155 @@
 
     <meta
         name="description"
-        content="Client-side AES-256-GCM message encryption tool"
+        content="Client-side AES-256-GCM message encryption tool."
     >
 
     <title>CipherVault</title>
 
-    <link rel="stylesheet" href="style.css">
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
 </head>
+
 
 <body>
 
+    <!-- Background -->
+
     <div class="background-grid"></div>
-    <div class="background-glow glow-one"></div>
-    <div class="background-glow glow-two"></div>
+
+    <div
+        class="background-glow glow-one"
+    ></div>
+
+    <div
+        class="background-glow glow-two"
+    ></div>
+
+
+    <!-- Application -->
 
     <main class="app">
+
+
+        <!-- Header -->
 
         <header class="header">
 
             <div class="brand">
 
                 <div class="logo">
-                    <span>⌁</span>
+                    ◇
                 </div>
 
-                <div>
-                    <h1>CipherVault</h1>
+                <div class="brand-text">
+
+                    <h1>
+                        CipherVault
+                    </h1>
 
                     <p>
                         CLIENT-SIDE MESSAGE ENCRYPTION
                     </p>
+
                 </div>
 
             </div>
 
-            <div class="security-status">
-                <span class="status-dot"></span>
-                LOCAL ENCRYPTION
+
+            <div class="header-actions">
+
+                <button
+                    id="themeToggle"
+                    class="theme-toggle"
+                    type="button"
+                    aria-label="Toggle theme"
+                    title="Toggle theme"
+                >
+
+                    <span id="themeIcon">
+                        ☾
+                    </span>
+
+                </button>
+
+
+                <div class="security-status">
+
+                    <span
+                        class="status-dot"
+                    ></span>
+
+                    LOCAL ENCRYPTION
+
+                </div>
+
             </div>
 
         </header>
 
 
+
+        <!-- Main Panel -->
+
         <section class="panel">
 
-            <div class="mode-selector">
 
-                <button
-                    id="encryptMode"
-                    class="mode active"
-                >
-                    <span>Encrypt</span>
-                </button>
+            <!-- Mode -->
 
-                <button
-                    id="decryptMode"
-                    class="mode"
+            <div class="mode-section">
+
+                <div class="field-header">
+
+                    <label>
+                        MODE
+                    </label>
+
+                    <span class="hint">
+                        Select operation
+                    </span>
+
+                </div>
+
+
+                <div
+                    id="modeSwitch"
+                    class="mode-switch"
+                    role="group"
+                    aria-label="Cipher mode"
                 >
-                    <span>Decrypt</span>
-                </button>
+
+                    <div
+                        class="mode-slider"
+                    ></div>
+
+
+                    <button
+                        id="encryptMode"
+                        class="mode-option active"
+                        type="button"
+                    >
+                        ENCRYPT
+                    </button>
+
+
+                    <button
+                        id="decryptMode"
+                        class="mode-option"
+                        type="button"
+                    >
+                        DECRYPT
+                    </button>
+
+                </div>
 
             </div>
 
+
+
+            <!-- Input -->
 
             <div class="field">
 
@@ -90,6 +179,7 @@
 
                 </div>
 
+
                 <textarea
                     id="input"
                     spellcheck="false"
@@ -98,6 +188,9 @@
 
             </div>
 
+
+
+            <!-- Secret Key -->
 
             <div class="field">
 
@@ -123,26 +216,72 @@
                         autocomplete="new-password"
                     >
 
+
                     <button
                         id="togglePassword"
                         class="icon-button"
                         type="button"
                         aria-label="Show password"
+                        title="Show / hide key"
                     >
                         ◉
                     </button>
 
                 </div>
 
+
+
+                <!-- Remember key -->
+
+                <div class="key-options">
+
+                    <label class="remember-key">
+
+                        <input
+                            type="checkbox"
+                            id="rememberKey"
+                        >
+
+                        <span
+                            class="custom-checkbox"
+                        ></span>
+
+                        <span class="remember-text">
+                            Remember key on this device
+                        </span>
+
+                    </label>
+
+
+                    <button
+                        id="forgetKey"
+                        class="forget-key"
+                        type="button"
+                    >
+                        FORGET SAVED KEY
+                    </button>
+
+                </div>
+
+
+                <p class="storage-warning">
+                    Stored locally in this browser.
+                    Do not use this option on shared devices.
+                </p>
+
             </div>
 
+
+
+            <!-- Process -->
 
             <button
                 id="process"
                 class="process-button"
+                type="button"
             >
 
-                <span class="button-glow"></span>
+                <span class="button-scan"></span>
 
                 <span class="button-content">
 
@@ -162,12 +301,22 @@
             </button>
 
 
+
+            <!-- Divider -->
+
             <div class="divider">
+
                 <span></span>
+
                 OUTPUT
+
                 <span></span>
+
             </div>
 
+
+
+            <!-- Output -->
 
             <div class="field output-field">
 
@@ -178,18 +327,22 @@
                     placeholder="Encrypted Base64 output will appear here..."
                 ></textarea>
 
+
                 <div class="output-actions">
 
                     <button
                         id="copy"
                         class="secondary-button"
+                        type="button"
                     >
                         COPY
                     </button>
 
+
                     <button
                         id="clear"
                         class="secondary-button danger"
+                        type="button"
                     >
                         CLEAR
                     </button>
@@ -199,13 +352,15 @@
             </div>
 
 
+
+            <!-- Status -->
+
             <div
                 id="statusContainer"
                 class="status-container"
             >
 
                 <span
-                    id="statusIndicator"
                     class="status-indicator"
                 ></span>
 
@@ -218,25 +373,37 @@
         </section>
 
 
+
+        <!-- Footer -->
+
         <footer>
 
-            <div>
+            <div class="crypto-info">
+
                 AES-256-GCM
+
                 <span>•</span>
+
                 PBKDF2-SHA256
+
                 <span>•</span>
+
                 BASE64
+
             </div>
 
+
             <p>
-                Encryption is performed locally in your browser.
+                Encryption and decryption are performed locally in your browser.
             </p>
 
         </footer>
 
     </main>
 
+
     <script src="app.js"></script>
 
 </body>
+
 </html>
