@@ -39,7 +39,6 @@
 
     <main class="app">
 
-
         <!-- HEADER -->
 
         <header class="header">
@@ -50,7 +49,7 @@
                     ◇
                 </div>
 
-                <div class="brand-text">
+                <div>
 
                     <h1>
                         CipherVault
@@ -82,9 +81,7 @@
 
                 <div class="security-status">
 
-                    <span
-                        class="status-dot"
-                    ></span>
+                    <span class="status-dot"></span>
 
                     LOCAL ENCRYPTION
 
@@ -95,10 +92,9 @@
         </header>
 
 
-        <!-- MAIN -->
+        <!-- MAIN PANEL -->
 
-        <section class="panel">
-
+        <section class="main-panel">
 
             <!-- SHARED KEY -->
 
@@ -145,13 +141,11 @@
                     <label class="remember-key">
 
                         <input
-                            type="checkbox"
                             id="rememberKey"
+                            type="checkbox"
                         >
 
-                        <span
-                            class="custom-checkbox"
-                        ></span>
+                        <span class="custom-checkbox"></span>
 
                         <span class="remember-text">
                             Remember key on this device
@@ -171,11 +165,12 @@
                 </div>
 
 
-                <p class="storage-warning">
-
-                    Stored locally in this browser.
-                    Do not use this option on shared devices.
-
+                <p
+                    id="storageInfo"
+                    class="storage-warning"
+                >
+                    When enabled, the secret is encrypted locally and stored
+                    in IndexedDB using a browser-generated non-extractable key.
                 </p>
 
             </section>
@@ -187,7 +182,7 @@
                 id="mobileModeSwitch"
                 class="mobile-mode-switch"
                 role="group"
-                aria-label="Choose mobile workspace"
+                aria-label="Choose workspace"
             >
 
                 <button
@@ -197,7 +192,6 @@
                 >
                     ENCRYPT
                 </button>
-
 
                 <button
                     id="mobileDecrypt"
@@ -210,10 +204,9 @@
             </div>
 
 
-            <!-- WORKSPACE -->
+            <!-- DUAL WORKSPACE -->
 
             <div class="workspace">
-
 
                 <!-- ENCRYPT -->
 
@@ -236,7 +229,6 @@
 
                         </div>
 
-
                         <span
                             id="encryptCounter"
                             class="counter"
@@ -247,18 +239,25 @@
                     </div>
 
 
-                    <div class="field">
+                    <div class="panel-input-block">
 
-                        <label for="encryptInput">
+                        <div class="field-title">
                             MESSAGE
-                        </label>
+                        </div>
 
 
                         <textarea
                             id="encryptInput"
+                            class="main-textarea"
                             spellcheck="false"
                             placeholder="Enter message to encrypt..."
                         ></textarea>
+
+
+                        <p class="field-help">
+                            The entire input is encrypted as one message
+                            using the shared secret key.
+                        </p>
 
                     </div>
 
@@ -287,11 +286,11 @@
                     </button>
 
 
-                    <div class="field output-field">
+                    <div class="panel-output-block">
 
-                        <label for="encryptOutput">
+                        <div class="field-title">
                             ENCRYPTED OUTPUT
-                        </label>
+                        </div>
 
 
                         <textarea
@@ -333,9 +332,7 @@
                         aria-live="polite"
                     >
 
-                        <span
-                            class="status-indicator"
-                        ></span>
+                        <span class="status-indicator"></span>
 
                         <span id="encryptStatus">
                             READY
@@ -367,7 +364,6 @@
 
                         </div>
 
-
                         <span
                             id="decryptCounter"
                             class="counter"
@@ -378,26 +374,24 @@
                     </div>
 
 
-                    <div class="field">
+                    <div class="panel-input-block">
 
-                        <label for="decryptInput">
+                        <div class="field-title">
                             ENCRYPTED MESSAGES
-                        </label>
+                        </div>
 
 
                         <textarea
                             id="decryptInput"
+                            class="main-textarea"
                             spellcheck="false"
                             placeholder="Paste one encrypted Base64 message per line..."
                         ></textarea>
 
 
                         <p class="field-help">
-
-                            One encrypted message per line.
-                            All lines are decrypted independently
-                            using the shared key.
-
+                            Each non-empty line is treated as an independent
+                            encrypted message and decrypted separately.
                         </p>
 
                     </div>
@@ -427,11 +421,11 @@
                     </button>
 
 
-                    <div class="field output-field">
+                    <div class="panel-output-block">
 
-                        <label for="decryptOutput">
+                        <div class="field-title">
                             DECRYPTED OUTPUT
-                        </label>
+                        </div>
 
 
                         <textarea
@@ -439,7 +433,7 @@
                             class="result-box"
                             spellcheck="false"
                             readonly
-                            placeholder="Decrypted messages will appear here, one result per input line..."
+                            placeholder="Decrypted messages will appear here..."
                         ></textarea>
 
 
@@ -473,9 +467,7 @@
                         aria-live="polite"
                     >
 
-                        <span
-                            class="status-indicator"
-                        ></span>
+                        <span class="status-indicator"></span>
 
                         <span id="decryptStatus">
                             READY
@@ -516,6 +508,62 @@
         </footer>
 
     </main>
+
+
+    <!-- CLEAR CONFIRMATION -->
+
+    <div
+        id="confirmModal"
+        class="modal-backdrop"
+        hidden
+    >
+
+        <div
+            class="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirmTitle"
+        >
+
+            <div class="confirm-icon">
+                !
+            </div>
+
+
+            <h3 id="confirmTitle">
+                Clear panel?
+            </h3>
+
+
+            <p id="confirmMessage">
+                This action will clear the current panel.
+            </p>
+
+
+            <div class="confirm-actions">
+
+                <button
+                    id="cancelClear"
+                    class="modal-button"
+                    type="button"
+                >
+                    CANCEL
+                </button>
+
+
+                <button
+                    id="confirmClear"
+                    class="modal-button confirm-danger"
+                    type="button"
+                >
+                    CLEAR
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
 
 
     <script src="app.js"></script>

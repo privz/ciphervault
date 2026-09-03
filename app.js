@@ -13,7 +13,6 @@ const encoder =
 const decoder =
     new TextDecoder();
 
-
 const VERSION =
     1;
 
@@ -31,17 +30,49 @@ const PBKDF2_ITERATIONS =
 
 
 // ======================================================
-// STORAGE
+// LOCAL STORAGE
 // ======================================================
 
 const THEME_STORAGE_KEY =
     "ciphervault-theme";
 
-const KEY_STORAGE_KEY =
+/*
+    Legacy keys from the previous version.
+
+    These are migrated away from plaintext localStorage.
+*/
+
+const LEGACY_KEY_STORAGE_KEY =
     "ciphervault-saved-key";
 
-const REMEMBER_STORAGE_KEY =
+const LEGACY_REMEMBER_STORAGE_KEY =
     "ciphervault-remember-key";
+
+
+// ======================================================
+// INDEXEDDB CONFIG
+// ======================================================
+
+const DB_NAME =
+    "ciphervault-local-vault";
+
+const DB_VERSION =
+    1;
+
+const DB_STORE =
+    "secure-storage";
+
+const IDB_DEVICE_KEY =
+    "device-wrapping-key";
+
+const IDB_SAVED_SECRET =
+    "saved-secret";
+
+const IDB_REMEMBER_FLAG =
+    "remember-secret";
+
+let databasePromise =
+    null;
 
 
 // ======================================================
@@ -66,6 +97,11 @@ const rememberKey =
 const forgetKey =
     document.getElementById(
         "forgetKey"
+    );
+
+const storageInfo =
+    document.getElementById(
+        "storageInfo"
     );
 
 const themeToggle =
@@ -208,6 +244,522 @@ const mobileDecrypt =
     );
 
 
+// Confirmation modal
+
+const confirmModal =
+    document.getElementById(
+        "confirmModal"
+    );
+
+const confirmTitle =
+    document.getElementById(
+        "confirmTitle"
+    );
+
+const confirmMessage =
+    document.getElementById(
+        "confirmMessage"
+    );
+
+const cancelClear =
+    document.getElementById(
+        "cancelClear"
+    );
+
+const confirmClear =
+    document.getElementById(
+        "confirmClear"
+    );
+
+let pendingClearAction =
+    null;
+
+
+// ======================================================
+// INDEXEDDB HELPERS
+// ======================================================
+
+function openDatabase() {
+
+    if (
+        databasePromise
+    ) {
+
+        return databasePromise;
+    }
+
+
+    databasePromise =
+        new Promise(
+            (
+                resolve,
+                reject
+            ) => {
+
+                const request =
+                    indexedDB.open(
+                        DB_NAME,
+                        DB_VERSION
+                    );
+
+
+                request.onupgradeneeded =
+                    event => {
+
+                        const db =
+                            event.target.result;
+
+
+                        if (
+                            !db.objectStoreNames.contains(
+                                DB_STORE
+                            )
+                        ) {
+
+                            db.createObjectStore(
+                                DB_STORE
+                            );
+                        }
+                    };
+
+
+                request.onsuccess =
+                    () => {
+
+                        resolve(
+                            request.result
+                        );
+                    };
+
+
+                request.onerror =
+                    () => {
+
+                        reject(
+                            request.error
+                        );
+                    };
+
+            }
+        );
+
+
+    return databasePromise;
+}
+
+
+async function idbGet(
+    key
+) {
+
+    const db =
+        await openDatabase();
+
+
+    return new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            const transaction =
+                db.transaction(
+                    DB_STORE,
+                    "readonly"
+                );
+
+
+            const store =
+                transaction.objectStore(
+                    DB_STORE
+                );
+
+
+            const request =
+                store.get(
+                    key
+                );
+
+
+            request.onsuccess =
+                () => {
+
+                    resolve(
+                        request.result
+                    );
+                };
+
+
+            request.onerror =
+                () => {
+
+                    reject(
+                        request.error
+                    );
+                };
+
+        }
+    );
+}
+
+
+async function idbSet(
+    key,
+    value
+) {
+
+    const db =
+        await openDatabase();
+
+
+    return new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            const transaction =
+                db.transaction(
+                    DB_STORE,
+                    "readwrite"
+                );
+
+
+            const store =
+                transaction.objectStore(
+                    DB_STORE
+                );
+
+
+            store.put(
+                value,
+                key
+            );
+
+
+            transaction.oncomplete =
+                () => resolve();
+
+
+            transaction.onerror =
+                () => {
+
+                    reject(
+                        transaction.error
+                    );
+                };
+
+        }
+    );
+}
+
+
+async function idbDelete(
+    key
+) {
+
+    const db =
+        await openDatabase();
+
+
+    return new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            const transaction =
+                db.transaction(
+                    DB_STORE,
+                    "readwrite"
+                );
+
+
+            transaction
+                .objectStore(
+                    DB_STORE
+                )
+                .delete(
+                    key
+                );
+
+
+            transaction.oncomplete =
+                () => resolve();
+
+
+            transaction.onerror =
+                () => {
+
+                    reject(
+                        transaction.error
+                    );
+                };
+
+        }
+    );
+}
+
+
+// ======================================================
+// LOCAL SECRET STORAGE KEY
+// ======================================================
+
+async function getOrCreateDeviceKey() {
+
+    let key =
+        await idbGet(
+            IDB_DEVICE_KEY
+        );
+
+
+    if (
+        key
+    ) {
+
+        return key;
+    }
+
+
+    /*
+        Important:
+
+        extractable = false
+
+        JavaScript can use the key for crypto,
+        but Web Crypto refuses exportKey().
+    */
+
+    key =
+        await crypto.subtle.generateKey(
+
+            {
+                name:
+                    "AES-GCM",
+
+                length:
+                    256
+            },
+
+            false,
+
+            [
+                "encrypt",
+                "decrypt"
+            ]
+        );
+
+
+    await idbSet(
+        IDB_DEVICE_KEY,
+        key
+    );
+
+
+    return key;
+}
+
+
+// ======================================================
+// ENCRYPT / DECRYPT REMEMBERED SECRET
+// ======================================================
+
+async function storeSecretLocally(
+    secret
+) {
+
+    const key =
+        await getOrCreateDeviceKey();
+
+
+    const iv =
+        crypto.getRandomValues(
+            new Uint8Array(
+                12
+            )
+        );
+
+
+    const encrypted =
+        await crypto.subtle.encrypt(
+
+            {
+                name:
+                    "AES-GCM",
+
+                iv:
+                    iv
+            },
+
+            key,
+
+            encoder.encode(
+                secret
+            )
+        );
+
+
+    await idbSet(
+
+        IDB_SAVED_SECRET,
+
+        {
+            version:
+                1,
+
+            iv:
+                Array.from(
+                    iv
+                ),
+
+            ciphertext:
+                Array.from(
+                    new Uint8Array(
+                        encrypted
+                    )
+                )
+        }
+    );
+}
+
+
+async function readStoredSecret() {
+
+    const record =
+        await idbGet(
+            IDB_SAVED_SECRET
+        );
+
+
+    if (
+        !record
+    ) {
+
+        return null;
+    }
+
+
+    if (
+        record.version !== 1
+    ) {
+
+        throw new Error(
+            "Unsupported local secret format."
+        );
+    }
+
+
+    const key =
+        await idbGet(
+            IDB_DEVICE_KEY
+        );
+
+
+    if (
+        !key
+    ) {
+
+        throw new Error(
+            "Local encryption key is missing."
+        );
+    }
+
+
+    const decrypted =
+        await crypto.subtle.decrypt(
+
+            {
+                name:
+                    "AES-GCM",
+
+                iv:
+                    new Uint8Array(
+                        record.iv
+                    )
+            },
+
+            key,
+
+            new Uint8Array(
+                record.ciphertext
+            )
+        );
+
+
+    return decoder.decode(
+        decrypted
+    );
+}
+
+
+// ======================================================
+// LEGACY PLAINTEXT MIGRATION
+// ======================================================
+
+async function migrateLegacySavedSecret() {
+
+    const legacyRemember =
+        localStorage.getItem(
+            LEGACY_REMEMBER_STORAGE_KEY
+        ) === "true";
+
+
+    const legacySecret =
+        localStorage.getItem(
+            LEGACY_KEY_STORAGE_KEY
+        );
+
+
+    if (
+        !legacyRemember ||
+        !legacySecret
+    ) {
+
+        /*
+            Remove stale legacy state if
+            no plaintext key remains.
+        */
+
+        if (
+            !legacySecret
+        ) {
+
+            localStorage.removeItem(
+                LEGACY_REMEMBER_STORAGE_KEY
+            );
+        }
+
+
+        return;
+    }
+
+
+    /*
+        Migrate before deleting the plaintext copy.
+    */
+
+    await idbSet(
+        IDB_REMEMBER_FLAG,
+        true
+    );
+
+
+    await storeSecretLocally(
+        legacySecret
+    );
+
+
+    localStorage.removeItem(
+        LEGACY_KEY_STORAGE_KEY
+    );
+
+
+    localStorage.removeItem(
+        LEGACY_REMEMBER_STORAGE_KEY
+    );
+}
+
+
 // ======================================================
 // BASE64
 // ======================================================
@@ -242,7 +794,7 @@ function base64ToBytes(
     base64
 ) {
 
-    const cleanedBase64 =
+    const cleaned =
         base64
             .trim()
             .replace(
@@ -253,13 +805,13 @@ function base64ToBytes(
 
     if (
 
-        cleanedBase64.length === 0 ||
+        cleaned.length === 0 ||
 
-        cleanedBase64.length % 4 !== 0 ||
+        cleaned.length % 4 !== 0 ||
 
         !/^[A-Za-z0-9+/]*={0,2}$/
             .test(
-                cleanedBase64
+                cleaned
             )
 
     ) {
@@ -277,7 +829,7 @@ function base64ToBytes(
 
         binary =
             atob(
-                cleanedBase64
+                cleaned
             );
 
     } catch {
@@ -312,7 +864,7 @@ function base64ToBytes(
 
 
 // ======================================================
-// KEY DERIVATION
+// MESSAGE KEY DERIVATION
 // ======================================================
 
 async function deriveKey(
@@ -345,7 +897,6 @@ async function deriveKey(
     return crypto.subtle.deriveKey(
 
         {
-
             name:
                 "PBKDF2",
 
@@ -357,19 +908,16 @@ async function deriveKey(
 
             hash:
                 "SHA-256"
-
         },
 
         passwordMaterial,
 
         {
-
             name:
                 "AES-GCM",
 
             length:
                 256
-
         },
 
         false,
@@ -383,7 +931,7 @@ async function deriveKey(
 
 
 // ======================================================
-// ENCRYPT
+// MESSAGE ENCRYPT
 // ======================================================
 
 async function encryptMessage(
@@ -413,7 +961,6 @@ async function encryptMessage(
 
     const salt =
         crypto.getRandomValues(
-
             new Uint8Array(
                 SALT_LENGTH
             )
@@ -422,7 +969,6 @@ async function encryptMessage(
 
     const iv =
         crypto.getRandomValues(
-
             new Uint8Array(
                 IV_LENGTH
             )
@@ -436,11 +982,10 @@ async function encryptMessage(
         );
 
 
-    const encryptedBuffer =
+    const encrypted =
         await crypto.subtle.encrypt(
 
             {
-
                 name:
                     "AES-GCM",
 
@@ -449,7 +994,6 @@ async function encryptMessage(
 
                 tagLength:
                     GCM_TAG_LENGTH
-
             },
 
             key,
@@ -462,19 +1006,9 @@ async function encryptMessage(
 
     const ciphertext =
         new Uint8Array(
-            encryptedBuffer
+            encrypted
         );
 
-
-    /*
-        Payload:
-
-        VERSION       1 byte
-        SALT          16 bytes
-        IV            12 bytes
-        CIPHERTEXT    variable
-        GCM TAG       included by WebCrypto
-    */
 
     const payload =
         new Uint8Array(
@@ -497,8 +1031,7 @@ async function encryptMessage(
         VERSION;
 
 
-    offset +=
-        1;
+    offset += 1;
 
 
     payload.set(
@@ -568,16 +1101,7 @@ async function decryptMessage(
         );
 
 
-    /*
-        minimum:
-
-        1  version
-        16 salt
-        12 IV
-        16 authentication tag
-    */
-
-    const minimumPayloadLength =
+    const minimumLength =
 
         1 +
 
@@ -590,7 +1114,7 @@ async function decryptMessage(
 
     if (
         payload.length <
-        minimumPayloadLength
+        minimumLength
     ) {
 
         throw new Error(
@@ -602,8 +1126,6 @@ async function decryptMessage(
     let offset =
         0;
 
-
-    // VERSION
 
     const version =
         payload[offset];
@@ -623,8 +1145,6 @@ async function decryptMessage(
     }
 
 
-    // SALT
-
     const salt =
         payload.slice(
 
@@ -639,8 +1159,6 @@ async function decryptMessage(
         SALT_LENGTH;
 
 
-    // IV
-
     const iv =
         payload.slice(
 
@@ -654,8 +1172,6 @@ async function decryptMessage(
     offset +=
         IV_LENGTH;
 
-
-    // CIPHER
 
     const ciphertext =
         payload.slice(
@@ -672,11 +1188,10 @@ async function decryptMessage(
 
     try {
 
-        const decryptedBuffer =
+        const decrypted =
             await crypto.subtle.decrypt(
 
                 {
-
                     name:
                         "AES-GCM",
 
@@ -685,7 +1200,6 @@ async function decryptMessage(
 
                     tagLength:
                         GCM_TAG_LENGTH
-
                 },
 
                 key,
@@ -695,7 +1209,7 @@ async function decryptMessage(
 
 
         return decoder.decode(
-            decryptedBuffer
+            decrypted
         );
 
 
@@ -709,12 +1223,13 @@ async function decryptMessage(
 
 
 // ======================================================
-// MULTI-LINE DECRYPT
+// BULK DECRYPT
 // ======================================================
 
 async function decryptLines(
     inputValue,
-    passwordValue
+    passwordValue,
+    progressCallback
 ) {
 
     if (
@@ -727,11 +1242,6 @@ async function decryptLines(
     }
 
 
-    /*
-        Cada linha não vazia é considerada
-        uma mensagem CipherVault independente.
-    */
-
     const lines =
         inputValue
             .replace(
@@ -743,19 +1253,17 @@ async function decryptLines(
             );
 
 
-    const nonEmptyCount =
-        lines
-            .filter(
-                line =>
-                    line
-                        .trim()
-                        .length > 0
-            )
-            .length;
+    const total =
+        lines.filter(
+            line =>
+                line
+                    .trim()
+                    .length > 0
+        ).length;
 
 
     if (
-        nonEmptyCount === 0
+        total === 0
     ) {
 
         throw new Error(
@@ -771,17 +1279,12 @@ async function decryptLines(
     let successCount =
         0;
 
-
     let errorCount =
         0;
 
+    let processed =
+        0;
 
-    /*
-        Processamento sequencial proposital.
-
-        Evita disparar dezenas de operações
-        PBKDF2 pesadas simultaneamente.
-    */
 
     for (
         let index = 0;
@@ -793,11 +1296,6 @@ async function decryptLines(
             lines[index]
                 .trim();
 
-
-        /*
-            Preserva linhas vazias
-            no resultado.
-        */
 
         if (
             !line
@@ -827,8 +1325,7 @@ async function decryptLines(
             );
 
 
-            successCount +=
-                1;
+            successCount += 1;
 
 
         } catch (
@@ -842,8 +1339,21 @@ async function decryptLines(
             );
 
 
-            errorCount +=
-                1;
+            errorCount += 1;
+        }
+
+
+        processed += 1;
+
+
+        if (
+            progressCallback
+        ) {
+
+            progressCallback(
+                processed,
+                total
+            );
         }
     }
 
@@ -855,15 +1365,11 @@ async function decryptLines(
                 "\n"
             ),
 
-        total:
-            nonEmptyCount,
+        total,
 
-        successCount:
-            successCount,
+        successCount,
 
-        errorCount:
-            errorCount
-
+        errorCount
     };
 }
 
@@ -1042,19 +1548,19 @@ function applyTheme(
 
 function loadTheme() {
 
-    const savedTheme =
+    const saved =
         localStorage.getItem(
             THEME_STORAGE_KEY
         );
 
 
     if (
-        savedTheme === "dark" ||
-        savedTheme === "light"
+        saved === "dark" ||
+        saved === "light"
     ) {
 
         applyTheme(
-            savedTheme
+            saved
         );
 
         return;
@@ -1063,9 +1569,7 @@ function loadTheme() {
 
     const prefersDark =
         window.matchMedia(
-
             "(prefers-color-scheme: dark)"
-
         ).matches;
 
 
@@ -1081,60 +1585,78 @@ function loadTheme() {
 
 
 // ======================================================
-// SAVED KEY
+// REMEMBERED KEY
 // ======================================================
 
-function loadSavedKey() {
+async function loadSavedKey() {
 
-    const shouldRemember =
-        localStorage.getItem(
-            REMEMBER_STORAGE_KEY
-        ) === "true";
+    try {
 
-
-    rememberKey.checked =
-        shouldRemember;
+        const enabled =
+            await idbGet(
+                IDB_REMEMBER_FLAG
+            ) === true;
 
 
-    if (
-        !shouldRemember
+        rememberKey.checked =
+            enabled;
+
+
+        if (
+            !enabled
+        ) {
+
+            forgetKey
+                .classList
+                .remove(
+                    "visible"
+                );
+
+            return;
+        }
+
+
+        const saved =
+            await readStoredSecret();
+
+
+        if (
+            saved
+        ) {
+
+            password.value =
+                saved;
+
+
+            forgetKey
+                .classList
+                .add(
+                    "visible"
+                );
+        }
+
+
+    } catch (
+        error
     ) {
 
-        forgetKey
-            .classList
-            .remove(
-                "visible"
-            );
+        rememberKey.checked =
+            false;
 
 
-        return;
-    }
+        storageInfo.textContent =
+            "The saved secret could not be loaded. You can forget it and save it again.";
 
 
-    const savedKey =
-        localStorage.getItem(
-            KEY_STORAGE_KEY
+        console.warn(
+            "CipherVault local secret load failed:",
+            error
         );
-
-
-    if (
-        savedKey
-    ) {
-
-        password.value =
-            savedKey;
-
-
-        forgetKey
-            .classList
-            .add(
-                "visible"
-            );
     }
 }
 
 
-function saveRememberedKey() {
+async function saveRememberedKey() {
 
     if (
         !rememberKey.checked
@@ -1144,35 +1666,18 @@ function saveRememberedKey() {
     }
 
 
-    localStorage.setItem(
-        REMEMBER_STORAGE_KEY,
-        "true"
+    await idbSet(
+        IDB_REMEMBER_FLAG,
+        true
     );
 
 
     if (
-        password.value
+        !password.value
     ) {
 
-        localStorage.setItem(
-
-            KEY_STORAGE_KEY,
-
-            password.value
-        );
-
-
-        forgetKey
-            .classList
-            .add(
-                "visible"
-            );
-
-
-    } else {
-
-        localStorage.removeItem(
-            KEY_STORAGE_KEY
+        await idbDelete(
+            IDB_SAVED_SECRET
         );
 
 
@@ -1181,12 +1686,68 @@ function saveRememberedKey() {
             .remove(
                 "visible"
             );
+
+
+        return;
     }
+
+
+    await storeSecretLocally(
+        password.value
+    );
+
+
+    forgetKey
+        .classList
+        .add(
+            "visible"
+        );
+}
+
+
+let secretSaveTimer =
+    null;
+
+
+function scheduleSecretSave() {
+
+    if (
+        !rememberKey.checked
+    ) {
+
+        return;
+    }
+
+
+    window.clearTimeout(
+        secretSaveTimer
+    );
+
+
+    secretSaveTimer =
+        window.setTimeout(
+            () => {
+
+                saveRememberedKey()
+                    .catch(
+                        error => {
+
+                            console.warn(
+                                "Could not save remembered key:",
+                                error
+                            );
+                        }
+                    );
+
+            },
+
+            400
+        );
 }
 
 
 // ======================================================
-// MOBILE MODE
+// MOBILE
 // ======================================================
 
 function setMobileMode(
@@ -1257,23 +1818,19 @@ function updateDecryptCounter() {
     const count =
         decryptInput
             .value
-
             .replace(
                 /\r/g,
                 ""
             )
-
             .split(
                 "\n"
             )
-
             .filter(
                 line =>
                     line
                         .trim()
                         .length > 0
             )
-
             .length;
 
 
@@ -1311,10 +1868,6 @@ async function writeClipboard(
     }
 
 
-    /*
-        Fallback.
-    */
-
     const helper =
         document.createElement(
             "textarea"
@@ -1323,12 +1876,6 @@ async function writeClipboard(
 
     helper.value =
         text;
-
-
-    helper.setAttribute(
-        "readonly",
-        ""
-    );
 
 
     helper.style.position =
@@ -1368,7 +1915,7 @@ async function writeClipboard(
 
 
 // ======================================================
-// COPY VISUAL FEEDBACK
+// COPY FEEDBACK
 // ======================================================
 
 function showCopiedFeedback(
@@ -1376,16 +1923,11 @@ function showCopiedFeedback(
     outputElement
 ) {
 
-    /*
-        Evita timers duplicados
-        se o usuário clicar várias vezes.
-    */
-
     if (
         button._copyTimer
     ) {
 
-        window.clearTimeout(
+        clearTimeout(
             button._copyTimer
         );
     }
@@ -1401,10 +1943,6 @@ function showCopiedFeedback(
     button.textContent =
         "✓ COPIED";
 
-
-    /*
-        Reinicia a animação do textarea.
-    */
 
     outputElement
         .classList
@@ -1487,11 +2025,8 @@ async function copyOutput(
 
 
         showCopiedFeedback(
-
             button,
-
             outputElement
-
         );
 
 
@@ -1521,10 +2056,139 @@ async function copyOutput(
             "error",
 
             error.message
-
         );
     }
 }
+
+
+// ======================================================
+// CLEAR CONFIRMATION MODAL
+// ======================================================
+
+function openClearConfirmation(
+    title,
+    message,
+    callback
+) {
+
+    pendingClearAction =
+        callback;
+
+
+    confirmTitle.textContent =
+        title;
+
+
+    confirmMessage.textContent =
+        message;
+
+
+    confirmModal.hidden =
+        false;
+
+
+    requestAnimationFrame(
+        () => {
+
+            confirmModal
+                .classList
+                .add(
+                    "visible"
+                );
+
+
+            cancelClear.focus();
+        }
+    );
+}
+
+
+function closeClearConfirmation() {
+
+    confirmModal
+        .classList
+        .remove(
+            "visible"
+        );
+
+
+    pendingClearAction =
+        null;
+
+
+    window.setTimeout(
+        () => {
+
+            confirmModal.hidden =
+                true;
+
+        },
+
+        180
+    );
+}
+
+
+cancelClear.addEventListener(
+    "click",
+    closeClearConfirmation
+);
+
+
+confirmClear.addEventListener(
+    "click",
+    () => {
+
+        const action =
+            pendingClearAction;
+
+
+        confirmModal
+            .classList
+            .remove(
+                "visible"
+            );
+
+
+        pendingClearAction =
+            null;
+
+
+        window.setTimeout(
+            () => {
+
+                confirmModal.hidden =
+                    true;
+
+
+                if (
+                    action
+                ) {
+
+                    action();
+                }
+
+            },
+
+            180
+        );
+    }
+);
+
+
+confirmModal.addEventListener(
+    "click",
+    event => {
+
+        if (
+            event.target ===
+            confirmModal
+        ) {
+
+            closeClearConfirmation();
+        }
+    }
+);
 
 
 // ======================================================
@@ -1569,9 +2233,7 @@ function detectExtensionMode() {
 
     } catch {
 
-        /*
-            Normal webpage mode.
-        */
+        // Normal webpage.
 
     }
 }
@@ -1585,17 +2247,16 @@ themeToggle.addEventListener(
     "click",
     () => {
 
-        const currentTheme =
+        const current =
             document
                 .documentElement
                 .dataset
                 .theme;
 
 
-        const newTheme =
+        const next =
 
-            currentTheme ===
-            "dark"
+            current === "dark"
 
                 ? "light"
 
@@ -1603,111 +2264,128 @@ themeToggle.addEventListener(
 
 
         applyTheme(
-            newTheme
+            next
         );
 
 
         localStorage.setItem(
-
             THEME_STORAGE_KEY,
-
-            newTheme
+            next
         );
     }
 );
 
 
 // ======================================================
-// REMEMBER KEY EVENTS
+// REMEMBER EVENTS
 // ======================================================
 
 rememberKey.addEventListener(
     "change",
-    () => {
+    async () => {
 
-        if (
-            rememberKey.checked
-        ) {
+        try {
 
-            localStorage.setItem(
+            if (
+                rememberKey.checked
+            ) {
 
-                REMEMBER_STORAGE_KEY,
-
-                "true"
-            );
-
-
-            saveRememberedKey();
-
-
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "success",
-
-                "Key remembering enabled."
-
-            );
-
-
-            setPanelStatus(
-
-                decryptStatusContainer,
-
-                decryptStatus,
-
-                "success",
-
-                "Key remembering enabled."
-
-            );
-
-
-        } else {
-
-            localStorage.removeItem(
-                REMEMBER_STORAGE_KEY
-            );
-
-
-            localStorage.removeItem(
-                KEY_STORAGE_KEY
-            );
-
-
-            forgetKey
-                .classList
-                .remove(
-                    "visible"
+                await idbSet(
+                    IDB_REMEMBER_FLAG,
+                    true
                 );
 
 
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "success",
-
-                "Saved key removed."
-
-            );
+                await saveRememberedKey();
 
 
-            setPanelStatus(
+                setPanelStatus(
 
-                decryptStatusContainer,
+                    encryptStatusContainer,
 
-                decryptStatus,
+                    encryptStatus,
 
-                "success",
+                    "success",
 
-                "Saved key removed."
+                    "Local key remembering enabled."
 
+                );
+
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "success",
+
+                    "Local key remembering enabled."
+
+                );
+
+
+            } else {
+
+                await idbSet(
+                    IDB_REMEMBER_FLAG,
+                    false
+                );
+
+
+                await idbDelete(
+                    IDB_SAVED_SECRET
+                );
+
+
+                forgetKey
+                    .classList
+                    .remove(
+                        "visible"
+                    );
+
+
+                setPanelStatus(
+
+                    encryptStatusContainer,
+
+                    encryptStatus,
+
+                    "success",
+
+                    "Saved key removed."
+
+                );
+
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "success",
+
+                    "Saved key removed."
+
+                );
+            }
+
+
+        } catch (
+            error
+        ) {
+
+            rememberKey.checked =
+                false;
+
+
+            storageInfo.textContent =
+                "Unable to use IndexedDB secure storage in this browser.";
+
+
+            console.error(
+                error
             );
         }
     }
@@ -1716,21 +2394,48 @@ rememberKey.addEventListener(
 
 password.addEventListener(
     "input",
-    saveRememberedKey
+    scheduleSecretSave
+);
+
+
+password.addEventListener(
+    "blur",
+    () => {
+
+        if (
+            rememberKey.checked
+        ) {
+
+            saveRememberedKey()
+                .catch(
+                    console.warn
+                );
+        }
+    }
 );
 
 
 forgetKey.addEventListener(
     "click",
-    () => {
+    async () => {
 
-        localStorage.removeItem(
-            KEY_STORAGE_KEY
+        await idbDelete(
+            IDB_SAVED_SECRET
         );
 
 
-        localStorage.removeItem(
-            REMEMBER_STORAGE_KEY
+        await idbDelete(
+            IDB_REMEMBER_FLAG
+        );
+
+
+        /*
+            Forget means forget everything
+            related to local secret storage.
+        */
+
+        await idbDelete(
+            IDB_DEVICE_KEY
         );
 
 
@@ -1781,7 +2486,7 @@ forgetKey.addEventListener(
 
 
 // ======================================================
-// SHOW / HIDE KEY
+// SHOW / HIDE PASSWORD
 // ======================================================
 
 togglePassword.addEventListener(
@@ -1811,25 +2516,13 @@ togglePassword.addEventListener(
                 : "◎";
 
 
-        togglePassword.setAttribute(
-
-            "aria-label",
-
-            visible
-
-                ? "Show password"
-
-                : "Hide password"
-        );
-
-
         password.focus();
     }
 );
 
 
 // ======================================================
-// COUNTER EVENTS
+// COUNTERS
 // ======================================================
 
 encryptInput.addEventListener(
@@ -1845,7 +2538,7 @@ decryptInput.addEventListener(
 
 
 // ======================================================
-// MOBILE EVENTS
+// MOBILE
 // ======================================================
 
 mobileEncrypt.addEventListener(
@@ -1871,7 +2564,7 @@ mobileDecrypt.addEventListener(
 
 
 // ======================================================
-// ENCRYPT EVENT
+// ENCRYPT
 // ======================================================
 
 encryptButton.addEventListener(
@@ -1931,7 +2624,12 @@ encryptButton.addEventListener(
                 );
 
 
-            saveRememberedKey();
+            if (
+                rememberKey.checked
+            ) {
+
+                await saveRememberedKey();
+            }
 
 
             setPanelStatus(
@@ -1960,7 +2658,6 @@ encryptButton.addEventListener(
                 "ENCRYPT MESSAGE",
 
                 "◇"
-
             );
 
 
@@ -1979,7 +2676,6 @@ encryptButton.addEventListener(
                 "ENCRYPT MESSAGE",
 
                 "◇"
-
             );
 
 
@@ -1992,7 +2688,6 @@ encryptButton.addEventListener(
                 "error",
 
                 error.message
-
             );
         }
     }
@@ -2000,7 +2695,7 @@ encryptButton.addEventListener(
 
 
 // ======================================================
-// BULK DECRYPT EVENT
+// DECRYPT
 // ======================================================
 
 decryptButton.addEventListener(
@@ -2044,7 +2739,7 @@ decryptButton.addEventListener(
 
             "processing",
 
-            "Decrypting each non-empty line."
+            "Preparing messages..."
 
         );
 
@@ -2056,7 +2751,25 @@ decryptButton.addEventListener(
 
                     decryptInput.value,
 
-                    password.value
+                    password.value,
+
+                    (
+                        processed,
+                        total
+                    ) => {
+
+                        setPanelStatus(
+
+                            decryptStatusContainer,
+
+                            decryptStatus,
+
+                            "processing",
+
+                            `Decrypting ${processed}/${total} messages`
+
+                        );
+                    }
                 );
 
 
@@ -2064,12 +2777,13 @@ decryptButton.addEventListener(
                 result.text;
 
 
-            saveRememberedKey();
+            if (
+                rememberKey.checked
+            ) {
 
+                await saveRememberedKey();
+            }
 
-            /*
-                Todas funcionaram.
-            */
 
             if (
                 result.errorCount === 0
@@ -2089,11 +2803,6 @@ decryptButton.addEventListener(
 
 
             } else {
-
-                /*
-                    Algumas falharam,
-                    mas o restante continua sendo exibido.
-                */
 
                 setPanelStatus(
 
@@ -2122,7 +2831,6 @@ decryptButton.addEventListener(
                 "DECRYPT MESSAGES",
 
                 "◆"
-
             );
 
 
@@ -2141,7 +2849,6 @@ decryptButton.addEventListener(
                 "DECRYPT MESSAGES",
 
                 "◆"
-
             );
 
 
@@ -2154,7 +2861,6 @@ decryptButton.addEventListener(
                 "error",
 
                 error.message
-
             );
         }
     }
@@ -2162,7 +2868,7 @@ decryptButton.addEventListener(
 
 
 // ======================================================
-// COPY EVENTS
+// COPY
 // ======================================================
 
 copyEncrypted.addEventListener(
@@ -2178,7 +2884,6 @@ copyEncrypted.addEventListener(
             encryptStatusContainer,
 
             encryptStatus
-
         );
     }
 );
@@ -2197,118 +2902,153 @@ copyDecrypted.addEventListener(
             decryptStatusContainer,
 
             decryptStatus
-
         );
     }
 );
 
 
 // ======================================================
-// CLEAR ENCRYPT
+// CLEAR
 // ======================================================
+
+function clearEncryptPanel() {
+
+    encryptInput.value =
+        "";
+
+
+    encryptOutput.value =
+        "";
+
+
+    updateEncryptCounter();
+
+
+    resetButton(
+
+        encryptButton,
+
+        encryptButtonText,
+
+        encryptIcon,
+
+        "ENCRYPT MESSAGE",
+
+        "◇"
+    );
+
+
+    setPanelStatus(
+
+        encryptStatusContainer,
+
+        encryptStatus,
+
+        "ready",
+
+        "Ready"
+    );
+
+
+    encryptInput.focus();
+}
+
+
+function clearDecryptPanel() {
+
+    decryptInput.value =
+        "";
+
+
+    decryptOutput.value =
+        "";
+
+
+    updateDecryptCounter();
+
+
+    resetButton(
+
+        decryptButton,
+
+        decryptButtonText,
+
+        decryptIcon,
+
+        "DECRYPT MESSAGES",
+
+        "◆"
+    );
+
+
+    setPanelStatus(
+
+        decryptStatusContainer,
+
+        decryptStatus,
+
+        "ready",
+
+        "Ready"
+    );
+
+
+    decryptInput.focus();
+}
+
 
 clearEncrypt.addEventListener(
     "click",
     () => {
 
-        encryptInput.value =
-            "";
+        if (
+            !encryptInput.value &&
+            !encryptOutput.value
+        ) {
+
+            return;
+        }
 
 
-        encryptOutput.value =
-            "";
+        openClearConfirmation(
 
+            "Clear Encrypt panel?",
 
-        updateEncryptCounter();
+            "The original message and encrypted output will be removed. Your shared secret key will not be changed.",
 
-
-        resetButton(
-
-            encryptButton,
-
-            encryptButtonText,
-
-            encryptIcon,
-
-            "ENCRYPT MESSAGE",
-
-            "◇"
-
+            clearEncryptPanel
         );
-
-
-        setPanelStatus(
-
-            encryptStatusContainer,
-
-            encryptStatus,
-
-            "ready",
-
-            "Ready"
-
-        );
-
-
-        encryptInput.focus();
     }
 );
 
-
-// ======================================================
-// CLEAR DECRYPT
-// ======================================================
 
 clearDecrypt.addEventListener(
     "click",
     () => {
 
-        decryptInput.value =
-            "";
+        if (
+            !decryptInput.value &&
+            !decryptOutput.value
+        ) {
+
+            return;
+        }
 
 
-        decryptOutput.value =
-            "";
+        openClearConfirmation(
 
+            "Clear Decrypt panel?",
 
-        updateDecryptCounter();
+            "All encrypted messages and decrypted results in this panel will be removed. Your shared secret key will not be changed.",
 
-
-        resetButton(
-
-            decryptButton,
-
-            decryptButtonText,
-
-            decryptIcon,
-
-            "DECRYPT MESSAGES",
-
-            "◆"
-
+            clearDecryptPanel
         );
-
-
-        setPanelStatus(
-
-            decryptStatusContainer,
-
-            decryptStatus,
-
-            "ready",
-
-            "Ready"
-
-        );
-
-
-        decryptInput.focus();
     }
 );
 
 
 // ======================================================
-// CTRL + ENTER
+// KEYBOARD SHORTCUTS
 // ======================================================
 
 document.addEventListener(
@@ -2316,11 +3056,19 @@ document.addEventListener(
     event => {
 
         if (
+            event.key === "Escape" &&
+            !confirmModal.hidden
+        ) {
 
+            closeClearConfirmation();
+
+            return;
+        }
+
+
+        if (
             !event.ctrlKey ||
-
             event.key !== "Enter"
-
         ) {
 
             return;
@@ -2329,13 +3077,6 @@ document.addEventListener(
 
         event.preventDefault();
 
-
-        /*
-            Se estiver escrevendo no decrypt,
-            executa decrypt.
-
-            Caso contrário executa encrypt.
-        */
 
         if (
             document.activeElement ===
@@ -2354,17 +3095,14 @@ document.addEventListener(
 
 
 // ======================================================
-// CRYPTO CHECK
+// ENVIRONMENT CHECK
 // ======================================================
 
-function checkCryptoAvailability() {
+function checkEnvironment() {
 
     if (
-
         !window.crypto ||
-
         !window.crypto.subtle
-
     ) {
 
         encryptButton.disabled =
@@ -2383,8 +3121,7 @@ function checkCryptoAvailability() {
 
             "error",
 
-            "Web Crypto API is not available in this browser."
-
+            "Web Crypto API is unavailable."
         );
 
 
@@ -2396,16 +3133,22 @@ function checkCryptoAvailability() {
 
             "error",
 
-            "Web Crypto API is not available in this browser."
-
+            "Web Crypto API is unavailable."
         );
-
-
-        return false;
     }
 
 
-    return true;
+    if (
+        !window.indexedDB
+    ) {
+
+        rememberKey.disabled =
+            true;
+
+
+        storageInfo.textContent =
+            "IndexedDB is unavailable. Remember key has been disabled.";
+    }
 }
 
 
@@ -2413,31 +3156,56 @@ function checkCryptoAvailability() {
 // INITIALIZATION
 // ======================================================
 
-function initializeApp() {
+async function initializeApp() {
 
     detectExtensionMode();
 
     loadTheme();
 
-    loadSavedKey();
-
-
-    /*
-        Mobile / extension começa no Encrypt.
-        Isso não afeta desktop, onde os dois
-        permanecem visíveis.
-    */
-
     setMobileMode(
         "encrypt"
     );
-
 
     updateEncryptCounter();
 
     updateDecryptCounter();
 
-    checkCryptoAvailability();
+    checkEnvironment();
+
+
+    if (
+        window.indexedDB &&
+        window.crypto &&
+        window.crypto.subtle
+    ) {
+
+        try {
+
+            /*
+                Automatically move plaintext key from
+                the previous LocalStorage implementation.
+            */
+
+            await migrateLegacySavedSecret();
+
+
+            await loadSavedKey();
+
+
+        } catch (
+            error
+        ) {
+
+            console.warn(
+                "CipherVault secure local storage initialization failed:",
+                error
+            );
+
+
+            storageInfo.textContent =
+                "Local remembered-key storage could not be initialized.";
+        }
+    }
 }
 
 
