@@ -30,17 +30,17 @@ const PBKDF2_ITERATIONS =
 
 
 // ======================================================
-// LOCAL STORAGE
+// APPLICATION STORAGE
 // ======================================================
 
 const THEME_STORAGE_KEY =
     "ciphervault-theme";
 
-/*
-    Legacy keys from the previous version.
+const ACTIVE_PROFILE_STORAGE_KEY =
+    "ciphervault-active-profile";
 
-    These are migrated away from plaintext localStorage.
-*/
+
+// Previous versions
 
 const LEGACY_KEY_STORAGE_KEY =
     "ciphervault-saved-key";
@@ -50,7 +50,7 @@ const LEGACY_REMEMBER_STORAGE_KEY =
 
 
 // ======================================================
-// INDEXEDDB CONFIG
+// INDEXEDDB
 // ======================================================
 
 const DB_NAME =
@@ -65,10 +65,13 @@ const DB_STORE =
 const IDB_DEVICE_KEY =
     "device-wrapping-key";
 
-const IDB_SAVED_SECRET =
+const IDB_PROFILES =
+    "profiles-v2";
+
+const LEGACY_IDB_SECRET =
     "saved-secret";
 
-const IDB_REMEMBER_FLAG =
+const LEGACY_IDB_REMEMBER =
     "remember-secret";
 
 let databasePromise =
@@ -76,8 +79,179 @@ let databasePromise =
 
 
 // ======================================================
+// ALTERNATE DISPLAY ROUTE
+// ======================================================
+
+/*
+    SHA-256 of the default alternate access key.
+
+    The literal key is intentionally not stored as a
+    plaintext string in this source file.
+
+    This is NOT cryptographic plausible deniability.
+*/
+
+const ALTERNATE_ROUTE_HASH =
+    "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+
+
+// ======================================================
+// COVER CONVERSATIONS
+// ======================================================
+
+const COVER_THREADS = [
+
+    [
+        "Você conseguiu revisar o arquivo?",
+        "Sim, terminei hoje de manhã.",
+        "Tinha alguma coisa para alterar?",
+        "Só alguns detalhes pequenos.",
+        "Beleza, consegue me mandar depois?",
+        "Consigo sim.",
+        "Vou conferir quando chegar em casa.",
+        "Tranquilo, sem pressa.",
+        "Acho que amanhã já fica resolvido.",
+        "Perfeito, qualquer coisa me avisa.",
+        "Pode deixar.",
+        "Valeu!"
+    ],
+
+    [
+        "Que horas você acha que chega?",
+        "Provavelmente por volta das sete.",
+        "Beleza, eu ainda vou estar por aqui.",
+        "Se eu atrasar eu te aviso.",
+        "Tranquilo.",
+        "Você vai de trem?",
+        "Sim, acho que é mais fácil.",
+        "Então deve estar tranquilo nesse horário.",
+        "Espero que sim.",
+        "Depois me manda mensagem.",
+        "Pode deixar.",
+        "Até mais!"
+    ],
+
+    [
+        "Você conseguiu comprar aquilo?",
+        "Ainda não, vou passar lá amanhã.",
+        "Sem problema.",
+        "Você sabe até que horas fica aberto?",
+        "Acho que fecha às oito.",
+        "Então dá tempo.",
+        "Sim, vou depois do trabalho.",
+        "Se não tiver eu vejo em outro lugar.",
+        "Beleza.",
+        "Quer que eu procure também?",
+        "Não precisa, tranquilo.",
+        "Fechado."
+    ],
+
+    [
+        "Vai almoçar por aí hoje?",
+        "Acho que sim.",
+        "Já sabe onde?",
+        "Ainda não, talvez naquele lugar de sempre.",
+        "Faz tempo que eu não vou lá.",
+        "Eu também.",
+        "Se não estiver cheio pode ser.",
+        "Normalmente nesse horário é tranquilo.",
+        "Então fechou.",
+        "Te aviso quando estiver saindo.",
+        "Beleza.",
+        "Até daqui a pouco."
+    ],
+
+    [
+        "A reunião continua no mesmo horário?",
+        "Sim, não mudaram nada.",
+        "Beleza, achei que tinham alterado.",
+        "Até agora continua igual.",
+        "Você já terminou sua parte?",
+        "Quase, falta revisar uma coisa.",
+        "Eu também preciso conferir a minha.",
+        "Acho que dá tempo tranquilo.",
+        "Sim.",
+        "Depois a gente compara antes de enviar.",
+        "Boa ideia.",
+        "Fechado."
+    ],
+
+    [
+        "Conseguiu resolver aquele negócio?",
+        "Mais ou menos.",
+        "O que aconteceu?",
+        "Faltou uma informação que eu não tinha.",
+        "Ah, entendi.",
+        "Vou tentar descobrir.",
+        "Se conseguir me manda.",
+        "Pode deixar.",
+        "Acho que amanhã já dá para finalizar.",
+        "Ótimo.",
+        "Depois me fala como ficou.",
+        "Falo sim."
+    ],
+
+    [
+        "Você vai fazer alguma coisa no fim de semana?",
+        "Ainda não decidi.",
+        "Eu também estou sem planos.",
+        "Talvez eu saia no sábado.",
+        "Se o tempo estiver bom vale a pena.",
+        "Sim, estava pensando nisso.",
+        "Depois vê e me fala.",
+        "Pode deixar.",
+        "Se não der a gente marca outro dia.",
+        "Tranquilo.",
+        "Sem pressa.",
+        "Fechado."
+    ],
+
+    [
+        "Você recebeu minha mensagem de ontem?",
+        "Recebi sim.",
+        "Achei que não tinha chegado.",
+        "Eu vi mais tarde.",
+        "Ah, tranquilo.",
+        "Eu estava ocupado e acabei não respondendo.",
+        "Sem problema.",
+        "Depois a gente conversa com calma.",
+        "Pode ser.",
+        "Hoje estou mais tranquilo.",
+        "Então te chamo depois.",
+        "Beleza."
+    ]
+
+];
+
+
+// ======================================================
 // DOM
 // ======================================================
+
+const profileSelect =
+    document.getElementById(
+        "profileSelect"
+    );
+
+const addProfile =
+    document.getElementById(
+        "addProfile"
+    );
+
+const manageProfiles =
+    document.getElementById(
+        "manageProfiles"
+    );
+
+const profileNotice =
+    document.getElementById(
+        "profileNotice"
+    );
+
+const profileStorageHint =
+    document.getElementById(
+        "profileStorageHint"
+    );
 
 const password =
     document.getElementById(
@@ -89,19 +263,9 @@ const togglePassword =
         "togglePassword"
     );
 
-const rememberKey =
+const keySourceHint =
     document.getElementById(
-        "rememberKey"
-    );
-
-const forgetKey =
-    document.getElementById(
-        "forgetKey"
-    );
-
-const storageInfo =
-    document.getElementById(
-        "storageInfo"
+        "keySourceHint"
     );
 
 const themeToggle =
@@ -244,7 +408,68 @@ const mobileDecrypt =
     );
 
 
-// Confirmation modal
+// Profile form modal
+
+const profileModal =
+    document.getElementById(
+        "profileModal"
+    );
+
+const profileModalTitle =
+    document.getElementById(
+        "profileModalTitle"
+    );
+
+const profileForm =
+    document.getElementById(
+        "profileForm"
+    );
+
+const profileName =
+    document.getElementById(
+        "profileName"
+    );
+
+const profileSecret =
+    document.getElementById(
+        "profileSecret"
+    );
+
+const toggleProfileSecret =
+    document.getElementById(
+        "toggleProfileSecret"
+    );
+
+const profileFormError =
+    document.getElementById(
+        "profileFormError"
+    );
+
+const cancelProfile =
+    document.getElementById(
+        "cancelProfile"
+    );
+
+
+// Manage modal
+
+const manageModal =
+    document.getElementById(
+        "manageModal"
+    );
+
+const profilesList =
+    document.getElementById(
+        "profilesList"
+    );
+
+const closeManage =
+    document.getElementById(
+        "closeManage"
+    );
+
+
+// Confirmation
 
 const confirmModal =
     document.getElementById(
@@ -261,22 +486,58 @@ const confirmMessage =
         "confirmMessage"
     );
 
-const cancelClear =
+const cancelConfirm =
     document.getElementById(
-        "cancelClear"
+        "cancelConfirm"
     );
 
-const confirmClear =
+const acceptConfirm =
     document.getElementById(
-        "confirmClear"
+        "acceptConfirm"
     );
 
-let pendingClearAction =
-    null;
+
+// Eject
+
+const ejectButton =
+    document.getElementById(
+        "ejectButton"
+    );
+
+const ejectOverlay =
+    document.getElementById(
+        "ejectOverlay"
+    );
 
 
 // ======================================================
-// INDEXEDDB HELPERS
+// APPLICATION STATE
+// ======================================================
+
+let profiles =
+    [];
+
+let activeProfileId =
+    "";
+
+let temporarySecret =
+    "";
+
+let editingProfileId =
+    null;
+
+let pendingConfirmation =
+    null;
+
+let ejectTimer =
+    null;
+
+let ejectTriggered =
+    false;
+
+
+// ======================================================
+// INDEXEDDB
 // ======================================================
 
 function openDatabase() {
@@ -320,6 +581,7 @@ function openDatabase() {
                                 DB_STORE
                             );
                         }
+
                     };
 
 
@@ -369,16 +631,14 @@ async function idbGet(
                 );
 
 
-            const store =
-                transaction.objectStore(
-                    DB_STORE
-                );
-
-
             const request =
-                store.get(
-                    key
-                );
+                transaction
+                    .objectStore(
+                        DB_STORE
+                    )
+                    .get(
+                        key
+                    );
 
 
             request.onsuccess =
@@ -425,16 +685,14 @@ async function idbSet(
                 );
 
 
-            const store =
-                transaction.objectStore(
+            transaction
+                .objectStore(
                     DB_STORE
+                )
+                .put(
+                    value,
+                    key
                 );
-
-
-            store.put(
-                value,
-                key
-            );
 
 
             transaction.oncomplete =
@@ -502,7 +760,7 @@ async function idbDelete(
 
 
 // ======================================================
-// LOCAL SECRET STORAGE KEY
+// LOCAL WRAPPING KEY
 // ======================================================
 
 async function getOrCreateDeviceKey() {
@@ -520,15 +778,6 @@ async function getOrCreateDeviceKey() {
         return key;
     }
 
-
-    /*
-        Important:
-
-        extractable = false
-
-        JavaScript can use the key for crypto,
-        but Web Crypto refuses exportKey().
-    */
 
     key =
         await crypto.subtle.generateKey(
@@ -561,11 +810,12 @@ async function getOrCreateDeviceKey() {
 
 
 // ======================================================
-// ENCRYPT / DECRYPT REMEMBERED SECRET
+// SECURE OBJECT STORAGE
 // ======================================================
 
-async function storeSecretLocally(
-    secret
+async function storeSecureObject(
+    recordName,
+    value
 ) {
 
     const key =
@@ -580,7 +830,15 @@ async function storeSecretLocally(
         );
 
 
-    const encrypted =
+    const plaintext =
+        encoder.encode(
+            JSON.stringify(
+                value
+            )
+        );
+
+
+    const ciphertext =
         await crypto.subtle.encrypt(
 
             {
@@ -593,15 +851,13 @@ async function storeSecretLocally(
 
             key,
 
-            encoder.encode(
-                secret
-            )
+            plaintext
         );
 
 
     await idbSet(
 
-        IDB_SAVED_SECRET,
+        recordName,
 
         {
             version:
@@ -615,7 +871,7 @@ async function storeSecretLocally(
             ciphertext:
                 Array.from(
                     new Uint8Array(
-                        encrypted
+                        ciphertext
                     )
                 )
         }
@@ -623,11 +879,13 @@ async function storeSecretLocally(
 }
 
 
-async function readStoredSecret() {
+async function readSecureObject(
+    recordName
+) {
 
     const record =
         await idbGet(
-            IDB_SAVED_SECRET
+            recordName
         );
 
 
@@ -644,7 +902,7 @@ async function readStoredSecret() {
     ) {
 
         throw new Error(
-            "Unsupported local secret format."
+            "Unsupported secure storage format."
         );
     }
 
@@ -660,12 +918,12 @@ async function readStoredSecret() {
     ) {
 
         throw new Error(
-            "Local encryption key is missing."
+            "Local wrapping key is unavailable."
         );
     }
 
 
-    const decrypted =
+    const plaintext =
         await crypto.subtle.decrypt(
 
             {
@@ -686,67 +944,187 @@ async function readStoredSecret() {
         );
 
 
-    return decoder.decode(
-        decrypted
+    return JSON.parse(
+        decoder.decode(
+            plaintext
+        )
     );
 }
 
 
 // ======================================================
-// LEGACY PLAINTEXT MIGRATION
+// OLD SAVED SECRET SUPPORT
 // ======================================================
 
-async function migrateLegacySavedSecret() {
+async function readLegacyIndexedSecret() {
 
-    const legacyRemember =
-        localStorage.getItem(
+    const record =
+        await idbGet(
+            LEGACY_IDB_SECRET
+        );
+
+
+    if (
+        !record
+    ) {
+
+        return null;
+    }
+
+
+    const key =
+        await idbGet(
+            IDB_DEVICE_KEY
+        );
+
+
+    if (
+        !key
+    ) {
+
+        return null;
+    }
+
+
+    try {
+
+        const plaintext =
+            await crypto.subtle.decrypt(
+
+                {
+                    name:
+                        "AES-GCM",
+
+                    iv:
+                        new Uint8Array(
+                            record.iv
+                        )
+                },
+
+                key,
+
+                new Uint8Array(
+                    record.ciphertext
+                )
+            );
+
+
+        return decoder.decode(
+            plaintext
+        );
+
+
+    } catch {
+
+        return null;
+    }
+}
+
+
+// ======================================================
+// PROFILE STORAGE
+// ======================================================
+
+async function persistProfiles() {
+
+    await storeSecureObject(
+        IDB_PROFILES,
+        profiles
+    );
+}
+
+
+async function loadProfiles() {
+
+    const saved =
+        await readSecureObject(
+            IDB_PROFILES
+        );
+
+
+    if (
+        Array.isArray(
+            saved
+        )
+    ) {
+
+        profiles =
+            saved;
+
+    } else {
+
+        profiles =
+            [];
+    }
+}
+
+
+// ======================================================
+// LEGACY MIGRATION
+// ======================================================
+
+async function migrateLegacyData() {
+
+    if (
+        profiles.length > 0
+    ) {
+
+        localStorage.removeItem(
+            LEGACY_KEY_STORAGE_KEY
+        );
+
+        localStorage.removeItem(
             LEGACY_REMEMBER_STORAGE_KEY
-        ) === "true";
+        );
+
+        return;
+    }
 
 
-    const legacySecret =
+    let oldSecret =
+        null;
+
+
+    const plaintextLegacy =
         localStorage.getItem(
             LEGACY_KEY_STORAGE_KEY
         );
 
 
     if (
-        !legacyRemember ||
-        !legacySecret
+        plaintextLegacy
     ) {
 
-        /*
-            Remove stale legacy state if
-            no plaintext key remains.
-        */
+        oldSecret =
+            plaintextLegacy;
 
-        if (
-            !legacySecret
-        ) {
+    } else {
 
-            localStorage.removeItem(
-                LEGACY_REMEMBER_STORAGE_KEY
-            );
-        }
-
-
-        return;
+        oldSecret =
+            await readLegacyIndexedSecret();
     }
 
 
-    /*
-        Migrate before deleting the plaintext copy.
-    */
+    if (
+        oldSecret
+    ) {
 
-    await idbSet(
-        IDB_REMEMBER_FLAG,
-        true
-    );
+        profiles.push(
+            {
+                id:
+                    createId(),
+
+                name:
+                    "Default",
+
+                secretKey:
+                    oldSecret
+            }
+        );
 
 
-    await storeSecretLocally(
-        legacySecret
-    );
+        await persistProfiles();
+    }
 
 
     localStorage.removeItem(
@@ -757,6 +1135,244 @@ async function migrateLegacySavedSecret() {
     localStorage.removeItem(
         LEGACY_REMEMBER_STORAGE_KEY
     );
+
+
+    await idbDelete(
+        LEGACY_IDB_SECRET
+    );
+
+
+    await idbDelete(
+        LEGACY_IDB_REMEMBER
+    );
+}
+
+
+// ======================================================
+// HASH
+// ======================================================
+
+async function sha256Bytes(
+    text
+) {
+
+    const buffer =
+        await crypto.subtle.digest(
+
+            "SHA-256",
+
+            encoder.encode(
+                text
+            )
+        );
+
+
+    return new Uint8Array(
+        buffer
+    );
+}
+
+
+async function sha256Hex(
+    text
+) {
+
+    const bytes =
+        await sha256Bytes(
+            text
+        );
+
+
+    return Array
+        .from(
+            bytes
+        )
+        .map(
+            byte =>
+                byte
+                    .toString(
+                        16
+                    )
+                    .padStart(
+                        2,
+                        "0"
+                    )
+        )
+        .join(
+            ""
+        );
+}
+
+
+async function usesAlternateRoute(
+    secret
+) {
+
+    if (
+        !secret
+    ) {
+
+        return false;
+    }
+
+
+    return (
+        await sha256Hex(
+            secret
+        )
+    ) ===
+        ALTERNATE_ROUTE_HASH;
+}
+
+
+// ======================================================
+// COVER OUTPUT
+// ======================================================
+
+async function createCoverTranscript(
+    inputValue
+) {
+
+    const lines =
+        inputValue
+            .replace(
+                /\r/g,
+                ""
+            )
+            .split(
+                "\n"
+            );
+
+
+    const total =
+        lines
+            .filter(
+                line =>
+                    line
+                        .trim()
+                        .length > 0
+            )
+            .length;
+
+
+    if (
+        total === 0
+    ) {
+
+        throw new Error(
+            "Enter at least one encrypted message."
+        );
+    }
+
+
+    const seed =
+        await sha256Bytes(
+            lines.join(
+                "\n"
+            )
+        );
+
+
+    const initialThread =
+        seed[0] %
+        COVER_THREADS.length;
+
+
+    const initialOffset =
+        seed[1] %
+        COVER_THREADS[
+            initialThread
+        ].length;
+
+
+    const output =
+        [];
+
+
+    let messageNumber =
+        0;
+
+
+    for (
+        const originalLine
+        of lines
+    ) {
+
+        if (
+            !originalLine.trim()
+        ) {
+
+            output.push(
+                ""
+            );
+
+            continue;
+        }
+
+
+        const absolutePosition =
+            initialOffset +
+            messageNumber;
+
+
+        const threadAdvance =
+            Math.floor(
+                absolutePosition /
+                COVER_THREADS[
+                    initialThread
+                ].length
+            );
+
+
+        const threadIndex =
+
+            (
+                initialThread +
+                threadAdvance
+            ) %
+
+            COVER_THREADS.length;
+
+
+        const thread =
+            COVER_THREADS[
+                threadIndex
+            ];
+
+
+        const lineIndex =
+            absolutePosition %
+            thread.length;
+
+
+        output.push(
+            thread[
+                lineIndex
+            ]
+        );
+
+
+        messageNumber +=
+            1;
+    }
+
+
+    return {
+
+        text:
+            output.join(
+                "\n"
+            ),
+
+        total:
+            total,
+
+        successCount:
+            total,
+
+        errorCount:
+            0
+    };
 }
 
 
@@ -864,7 +1480,7 @@ function base64ToBytes(
 
 
 // ======================================================
-// MESSAGE KEY DERIVATION
+// MESSAGE KEY
 // ======================================================
 
 async function deriveKey(
@@ -931,7 +1547,7 @@ async function deriveKey(
 
 
 // ======================================================
-// MESSAGE ENCRYPT
+// ENCRYPT
 // ======================================================
 
 async function encryptMessage(
@@ -955,6 +1571,18 @@ async function encryptMessage(
 
         throw new Error(
             "Enter a secret key."
+        );
+    }
+
+
+    if (
+        await usesAlternateRoute(
+            passwordValue
+        )
+    ) {
+
+        throw new Error(
+            "This key is reserved and cannot encrypt messages."
         );
     }
 
@@ -1067,33 +1695,13 @@ async function encryptMessage(
 
 
 // ======================================================
-// SINGLE MESSAGE DECRYPT
+// SINGLE DECRYPT
 // ======================================================
 
 async function decryptMessage(
     encryptedBase64,
     passwordValue
 ) {
-
-    if (
-        !encryptedBase64
-    ) {
-
-        throw new Error(
-            "Encrypted message is empty."
-        );
-    }
-
-
-    if (
-        !passwordValue
-    ) {
-
-        throw new Error(
-            "Enter the secret key."
-        );
-    }
-
 
     const payload =
         base64ToBytes(
@@ -1223,7 +1831,7 @@ async function decryptMessage(
 
 
 // ======================================================
-// BULK DECRYPT
+// MULTI DECRYPT
 // ======================================================
 
 async function decryptLines(
@@ -1238,6 +1846,18 @@ async function decryptLines(
 
         throw new Error(
             "Enter the secret key."
+        );
+    }
+
+
+    if (
+        await usesAlternateRoute(
+            passwordValue
+        )
+    ) {
+
+        return createCoverTranscript(
+            inputValue
         );
     }
 
@@ -1325,7 +1945,8 @@ async function decryptLines(
             );
 
 
-            successCount += 1;
+            successCount +=
+                1;
 
 
         } catch (
@@ -1339,11 +1960,13 @@ async function decryptLines(
             );
 
 
-            errorCount += 1;
+            errorCount +=
+                1;
         }
 
 
-        processed += 1;
+        processed +=
+            1;
 
 
         if (
@@ -1375,6 +1998,686 @@ async function decryptLines(
 
 
 // ======================================================
+// PROFILE HELPERS
+// ======================================================
+
+function createId() {
+
+    if (
+        crypto.randomUUID
+    ) {
+
+        return crypto.randomUUID();
+    }
+
+
+    const bytes =
+        crypto.getRandomValues(
+            new Uint8Array(
+                16
+            )
+        );
+
+
+    return Array
+        .from(
+            bytes
+        )
+        .map(
+            value =>
+                value
+                    .toString(
+                        16
+                    )
+                    .padStart(
+                        2,
+                        "0"
+                    )
+        )
+        .join(
+            ""
+        );
+}
+
+
+function getProfile(
+    id
+) {
+
+    return profiles.find(
+        profile =>
+            profile.id === id
+    ) || null;
+}
+
+
+function updateManageButton() {
+
+    manageProfiles.disabled =
+        profiles.length === 0;
+}
+
+
+function refreshProfileSelect(
+    selectedId =
+        activeProfileId
+) {
+
+    profileSelect.innerHTML =
+        "";
+
+
+    const temporaryOption =
+        document.createElement(
+            "option"
+        );
+
+
+    temporaryOption.value =
+        "";
+
+
+    temporaryOption.textContent =
+        "Temporary Session";
+
+
+    profileSelect.appendChild(
+        temporaryOption
+    );
+
+
+    const sorted =
+        [...profiles]
+            .sort(
+                (
+                    a,
+                    b
+                ) =>
+                    a.name.localeCompare(
+                        b.name
+                    )
+            );
+
+
+    for (
+        const profile
+        of sorted
+    ) {
+
+        const option =
+            document.createElement(
+                "option"
+            );
+
+
+        option.value =
+            profile.id;
+
+
+        option.textContent =
+            profile.name;
+
+
+        profileSelect.appendChild(
+            option
+        );
+    }
+
+
+    if (
+        selectedId &&
+        getProfile(
+            selectedId
+        )
+    ) {
+
+        profileSelect.value =
+            selectedId;
+
+    } else {
+
+        profileSelect.value =
+            "";
+    }
+
+
+    updateManageButton();
+}
+
+
+function updateKeySourceHint() {
+
+    const profile =
+        getProfile(
+            activeProfileId
+        );
+
+
+    if (
+        !profile
+    ) {
+
+        keySourceHint.textContent =
+            "TEMPORARY KEY";
+
+        profileStorageHint.textContent =
+            "NOT STORED";
+
+        profileNotice.textContent =
+            "Temporary sessions are not stored.";
+
+        return;
+    }
+
+
+    if (
+        password.value ===
+        profile.secretKey
+    ) {
+
+        keySourceHint.textContent =
+            "PROFILE KEY • STORED LOCALLY";
+
+    } else {
+
+        keySourceHint.textContent =
+            "SESSION OVERRIDE • PROFILE UNCHANGED";
+    }
+
+
+    profileStorageHint.textContent =
+        "ENCRYPTED LOCAL PROFILE";
+
+
+    profileNotice.textContent =
+        `Active profile: ${profile.name}`;
+}
+
+
+function activateProfile(
+    profileId
+) {
+
+    if (
+        !activeProfileId
+    ) {
+
+        temporarySecret =
+            password.value;
+    }
+
+
+    activeProfileId =
+        profileId;
+
+
+    if (
+        !profileId
+    ) {
+
+        password.value =
+            temporarySecret;
+
+
+        localStorage.removeItem(
+            ACTIVE_PROFILE_STORAGE_KEY
+        );
+
+
+        updateKeySourceHint();
+
+        return;
+    }
+
+
+    const profile =
+        getProfile(
+            profileId
+        );
+
+
+    if (
+        !profile
+    ) {
+
+        activeProfileId =
+            "";
+
+        profileSelect.value =
+            "";
+
+        password.value =
+            temporarySecret;
+
+        localStorage.removeItem(
+            ACTIVE_PROFILE_STORAGE_KEY
+        );
+
+        updateKeySourceHint();
+
+        return;
+    }
+
+
+    password.value =
+        profile.secretKey;
+
+
+    localStorage.setItem(
+        ACTIVE_PROFILE_STORAGE_KEY,
+        profile.id
+    );
+
+
+    updateKeySourceHint();
+}
+
+
+// ======================================================
+// PROFILE MODAL
+// ======================================================
+
+function openModal(
+    modal
+) {
+
+    modal.hidden =
+        false;
+
+
+    requestAnimationFrame(
+        () => {
+
+            modal.classList.add(
+                "visible"
+            );
+        }
+    );
+}
+
+
+function closeModal(
+    modal
+) {
+
+    modal.classList.remove(
+        "visible"
+    );
+
+
+    window.setTimeout(
+        () => {
+
+            modal.hidden =
+                true;
+
+        },
+
+        180
+    );
+}
+
+
+function openProfileForm(
+    profile =
+        null
+) {
+
+    editingProfileId =
+        profile
+            ? profile.id
+            : null;
+
+
+    profileModalTitle.textContent =
+        profile
+            ? "Edit Profile"
+            : "New Profile";
+
+
+    profileName.value =
+        profile
+            ? profile.name
+            : "";
+
+
+    profileSecret.value =
+        profile
+            ? profile.secretKey
+            : "";
+
+
+    profileSecret.type =
+        "password";
+
+
+    toggleProfileSecret.textContent =
+        "◉";
+
+
+    profileFormError.textContent =
+        "";
+
+
+    openModal(
+        profileModal
+    );
+
+
+    window.setTimeout(
+        () => {
+
+            profileName.focus();
+
+        },
+
+        50
+    );
+}
+
+
+function renderProfilesList() {
+
+    profilesList.innerHTML =
+        "";
+
+
+    if (
+        profiles.length === 0
+    ) {
+
+        const empty =
+            document.createElement(
+                "div"
+            );
+
+
+        empty.className =
+            "empty-profiles";
+
+
+        empty.textContent =
+            "No saved profiles.";
+
+
+        profilesList.appendChild(
+            empty
+        );
+
+
+        return;
+    }
+
+
+    const sorted =
+        [...profiles]
+            .sort(
+                (
+                    a,
+                    b
+                ) =>
+                    a.name.localeCompare(
+                        b.name
+                    )
+            );
+
+
+    for (
+        const profile
+        of sorted
+    ) {
+
+        const item =
+            document.createElement(
+                "div"
+            );
+
+
+        item.className =
+            "profile-list-item";
+
+
+        const info =
+            document.createElement(
+                "div"
+            );
+
+
+        info.className =
+            "profile-list-info";
+
+
+        const title =
+            document.createElement(
+                "strong"
+            );
+
+
+        title.textContent =
+            profile.name;
+
+
+        const status =
+            document.createElement(
+                "span"
+            );
+
+
+        status.textContent =
+            profile.id === activeProfileId
+                ? "ACTIVE PROFILE"
+                : "SECRET CONFIGURED";
+
+
+        info.append(
+            title,
+            status
+        );
+
+
+        const actions =
+            document.createElement(
+                "div"
+            );
+
+
+        actions.className =
+            "profile-list-actions";
+
+
+        const editButton =
+            document.createElement(
+                "button"
+            );
+
+
+        editButton.className =
+            "profile-mini-button";
+
+
+        editButton.type =
+            "button";
+
+
+        editButton.textContent =
+            "EDIT";
+
+
+        editButton.addEventListener(
+            "click",
+            () => {
+
+                closeModal(
+                    manageModal
+                );
+
+
+                window.setTimeout(
+                    () => {
+
+                        openProfileForm(
+                            profile
+                        );
+
+                    },
+
+                    190
+                );
+            }
+        );
+
+
+        const deleteButton =
+            document.createElement(
+                "button"
+            );
+
+
+        deleteButton.className =
+            "profile-mini-button delete";
+
+
+        deleteButton.type =
+            "button";
+
+
+        deleteButton.textContent =
+            "DELETE";
+
+
+        deleteButton.addEventListener(
+            "click",
+            () => {
+
+                openConfirmation(
+
+                    `Delete ${profile.name}?`,
+
+                    "This permanently removes the locally stored profile and its secret key.",
+
+                    "DELETE",
+
+                    async () => {
+
+                        profiles =
+                            profiles.filter(
+                                item =>
+                                    item.id !==
+                                    profile.id
+                            );
+
+
+                        if (
+                            activeProfileId ===
+                            profile.id
+                        ) {
+
+                            activeProfileId =
+                                "";
+
+                            password.value =
+                                temporarySecret;
+
+                            localStorage.removeItem(
+                                ACTIVE_PROFILE_STORAGE_KEY
+                            );
+                        }
+
+
+                        await persistProfiles();
+
+
+                        refreshProfileSelect(
+                            activeProfileId
+                        );
+
+
+                        renderProfilesList();
+
+
+                        updateKeySourceHint();
+                    }
+                );
+            }
+        );
+
+
+        actions.append(
+            editButton,
+            deleteButton
+        );
+
+
+        item.append(
+            info,
+            actions
+        );
+
+
+        profilesList.appendChild(
+            item
+        );
+    }
+}
+
+
+// ======================================================
+// CONFIRMATION
+// ======================================================
+
+function openConfirmation(
+    title,
+    message,
+    actionLabel,
+    callback
+) {
+
+    pendingConfirmation =
+        callback;
+
+
+    confirmTitle.textContent =
+        title;
+
+
+    confirmMessage.textContent =
+        message;
+
+
+    acceptConfirm.textContent =
+        actionLabel;
+
+
+    openModal(
+        confirmModal
+    );
+
+
+    window.setTimeout(
+        () => {
+
+            cancelConfirm.focus();
+
+        },
+
+        50
+    );
+}
+
+
+function closeConfirmation() {
+
+    pendingConfirmation =
+        null;
+
+
+    closeModal(
+        confirmModal
+    );
+}
+
+
+// ======================================================
 // STATUS
 // ======================================================
 
@@ -1394,11 +2697,9 @@ function setPanelStatus(
         type !== "ready"
     ) {
 
-        container
-            .classList
-            .add(
-                type
-            );
+        container.classList.add(
+            type
+        );
     }
 
 
@@ -1408,7 +2709,7 @@ function setPanelStatus(
 
 
 // ======================================================
-// BUTTON HELPERS
+// BUTTON STATE
 // ======================================================
 
 function setButtonProcessing(
@@ -1418,18 +2719,14 @@ function setButtonProcessing(
     message
 ) {
 
-    button
-        .classList
-        .remove(
-            "success"
-        );
+    button.classList.remove(
+        "success"
+    );
 
 
-    button
-        .classList
-        .add(
-            "processing"
-        );
+    button.classList.add(
+        "processing"
+    );
 
 
     iconElement.textContent =
@@ -1450,18 +2747,14 @@ function finishButtonSuccess(
     idleIcon
 ) {
 
-    button
-        .classList
-        .remove(
-            "processing"
-        );
+    button.classList.remove(
+        "processing"
+    );
 
 
-    button
-        .classList
-        .add(
-            "success"
-        );
+    button.classList.add(
+        "success"
+    );
 
 
     iconElement.textContent =
@@ -1475,11 +2768,9 @@ function finishButtonSuccess(
     window.setTimeout(
         () => {
 
-            button
-                .classList
-                .remove(
-                    "success"
-                );
+            button.classList.remove(
+                "success"
+            );
 
 
             iconElement.textContent =
@@ -1504,12 +2795,10 @@ function resetButton(
     idleIcon
 ) {
 
-    button
-        .classList
-        .remove(
-            "processing",
-            "success"
-        );
+    button.classList.remove(
+        "processing",
+        "success"
+    );
 
 
     iconElement.textContent =
@@ -1537,11 +2826,8 @@ function applyTheme(
 
 
     themeIcon.textContent =
-
         theme === "dark"
-
             ? "☾"
-
             : "☀";
 }
 
@@ -1574,220 +2860,10 @@ function loadTheme() {
 
 
     applyTheme(
-
         prefersDark
-
             ? "dark"
-
             : "light"
     );
-}
-
-
-// ======================================================
-// REMEMBERED KEY
-// ======================================================
-
-async function loadSavedKey() {
-
-    try {
-
-        const enabled =
-            await idbGet(
-                IDB_REMEMBER_FLAG
-            ) === true;
-
-
-        rememberKey.checked =
-            enabled;
-
-
-        if (
-            !enabled
-        ) {
-
-            forgetKey
-                .classList
-                .remove(
-                    "visible"
-                );
-
-            return;
-        }
-
-
-        const saved =
-            await readStoredSecret();
-
-
-        if (
-            saved
-        ) {
-
-            password.value =
-                saved;
-
-
-            forgetKey
-                .classList
-                .add(
-                    "visible"
-                );
-        }
-
-
-    } catch (
-        error
-    ) {
-
-        rememberKey.checked =
-            false;
-
-
-        storageInfo.textContent =
-            "The saved secret could not be loaded. You can forget it and save it again.";
-
-
-        console.warn(
-            "CipherVault local secret load failed:",
-            error
-        );
-    }
-}
-
-
-async function saveRememberedKey() {
-
-    if (
-        !rememberKey.checked
-    ) {
-
-        return;
-    }
-
-
-    await idbSet(
-        IDB_REMEMBER_FLAG,
-        true
-    );
-
-
-    if (
-        !password.value
-    ) {
-
-        await idbDelete(
-            IDB_SAVED_SECRET
-        );
-
-
-        forgetKey
-            .classList
-            .remove(
-                "visible"
-            );
-
-
-        return;
-    }
-
-
-    await storeSecretLocally(
-        password.value
-    );
-
-
-    forgetKey
-        .classList
-        .add(
-            "visible"
-        );
-}
-
-
-let secretSaveTimer =
-    null;
-
-
-function scheduleSecretSave() {
-
-    if (
-        !rememberKey.checked
-    ) {
-
-        return;
-    }
-
-
-    window.clearTimeout(
-        secretSaveTimer
-    );
-
-
-    secretSaveTimer =
-        window.setTimeout(
-            () => {
-
-                saveRememberedKey()
-                    .catch(
-                        error => {
-
-                            console.warn(
-                                "Could not save remembered key:",
-                                error
-                            );
-                        }
-                    );
-
-            },
-
-            400
-        );
-}
-
-
-// ======================================================
-// MOBILE
-// ======================================================
-
-function setMobileMode(
-    mode
-) {
-
-    const encryptActive =
-        mode === "encrypt";
-
-
-    encryptPanel
-        .classList
-        .toggle(
-            "active-mobile",
-            encryptActive
-        );
-
-
-    decryptPanel
-        .classList
-        .toggle(
-            "active-mobile",
-            !encryptActive
-        );
-
-
-    mobileEncrypt
-        .classList
-        .toggle(
-            "active",
-            encryptActive
-        );
-
-
-    mobileDecrypt
-        .classList
-        .toggle(
-            "active",
-            !encryptActive
-        );
 }
 
 
@@ -1804,7 +2880,6 @@ function updateEncryptCounter() {
 
 
     encryptCounter.textContent =
-
         `${count} ${
             count === 1
                 ? "char"
@@ -1827,20 +2902,54 @@ function updateDecryptCounter() {
             )
             .filter(
                 line =>
-                    line
-                        .trim()
-                        .length > 0
+                    line.trim().length > 0
             )
             .length;
 
 
     decryptCounter.textContent =
-
         `${count} ${
             count === 1
                 ? "message"
                 : "messages"
         }`;
+}
+
+
+// ======================================================
+// MOBILE
+// ======================================================
+
+function setMobileMode(
+    mode
+) {
+
+    const encryptActive =
+        mode === "encrypt";
+
+
+    encryptPanel.classList.toggle(
+        "active-mobile",
+        encryptActive
+    );
+
+
+    decryptPanel.classList.toggle(
+        "active-mobile",
+        !encryptActive
+    );
+
+
+    mobileEncrypt.classList.toggle(
+        "active",
+        encryptActive
+    );
+
+
+    mobileDecrypt.classList.toggle(
+        "active",
+        !encryptActive
+    );
 }
 
 
@@ -1914,13 +3023,9 @@ async function writeClipboard(
 }
 
 
-// ======================================================
-// COPY FEEDBACK
-// ======================================================
-
 function showCopiedFeedback(
     button,
-    outputElement
+    output
 ) {
 
     if (
@@ -1933,54 +3038,44 @@ function showCopiedFeedback(
     }
 
 
-    button
-        .classList
-        .add(
-            "copied"
-        );
+    button.classList.add(
+        "copied"
+    );
 
 
     button.textContent =
         "✓ COPIED";
 
 
-    outputElement
-        .classList
-        .remove(
-            "copy-flash"
-        );
+    output.classList.remove(
+        "copy-flash"
+    );
 
 
-    void outputElement.offsetWidth;
+    void output.offsetWidth;
 
 
-    outputElement
-        .classList
-        .add(
-            "copy-flash"
-        );
+    output.classList.add(
+        "copy-flash"
+    );
 
 
     button._copyTimer =
         window.setTimeout(
             () => {
 
-                button
-                    .classList
-                    .remove(
-                        "copied"
-                    );
+                button.classList.remove(
+                    "copied"
+                );
 
 
                 button.textContent =
                     "COPY";
 
 
-                outputElement
-                    .classList
-                    .remove(
-                        "copy-flash"
-                    );
+                output.classList.remove(
+                    "copy-flash"
+                );
 
             },
 
@@ -1991,20 +3086,20 @@ function showCopiedFeedback(
 
 async function copyOutput(
     button,
-    outputElement,
+    output,
     statusContainer,
-    statusText
+    statusElement
 ) {
 
     if (
-        !outputElement.value
+        !output.value
     ) {
 
         setPanelStatus(
 
             statusContainer,
 
-            statusText,
+            statusElement,
 
             "error",
 
@@ -2020,13 +3115,13 @@ async function copyOutput(
     try {
 
         await writeClipboard(
-            outputElement.value
+            output.value
         );
 
 
         showCopiedFeedback(
             button,
-            outputElement
+            output
         );
 
 
@@ -2034,7 +3129,7 @@ async function copyOutput(
 
             statusContainer,
 
-            statusText,
+            statusElement,
 
             "success",
 
@@ -2051,7 +3146,7 @@ async function copyOutput(
 
             statusContainer,
 
-            statusText,
+            statusElement,
 
             "error",
 
@@ -2062,137 +3157,7 @@ async function copyOutput(
 
 
 // ======================================================
-// CLEAR CONFIRMATION MODAL
-// ======================================================
-
-function openClearConfirmation(
-    title,
-    message,
-    callback
-) {
-
-    pendingClearAction =
-        callback;
-
-
-    confirmTitle.textContent =
-        title;
-
-
-    confirmMessage.textContent =
-        message;
-
-
-    confirmModal.hidden =
-        false;
-
-
-    requestAnimationFrame(
-        () => {
-
-            confirmModal
-                .classList
-                .add(
-                    "visible"
-                );
-
-
-            cancelClear.focus();
-        }
-    );
-}
-
-
-function closeClearConfirmation() {
-
-    confirmModal
-        .classList
-        .remove(
-            "visible"
-        );
-
-
-    pendingClearAction =
-        null;
-
-
-    window.setTimeout(
-        () => {
-
-            confirmModal.hidden =
-                true;
-
-        },
-
-        180
-    );
-}
-
-
-cancelClear.addEventListener(
-    "click",
-    closeClearConfirmation
-);
-
-
-confirmClear.addEventListener(
-    "click",
-    () => {
-
-        const action =
-            pendingClearAction;
-
-
-        confirmModal
-            .classList
-            .remove(
-                "visible"
-            );
-
-
-        pendingClearAction =
-            null;
-
-
-        window.setTimeout(
-            () => {
-
-                confirmModal.hidden =
-                    true;
-
-
-                if (
-                    action
-                ) {
-
-                    action();
-                }
-
-            },
-
-            180
-        );
-    }
-);
-
-
-confirmModal.addEventListener(
-    "click",
-    event => {
-
-        if (
-            event.target ===
-            confirmModal
-        ) {
-
-            closeClearConfirmation();
-        }
-    }
-);
-
-
-// ======================================================
-// EXTENSION DETECTION
+// EXTENSION MODE
 // ======================================================
 
 function detectExtensionMode() {
@@ -2201,7 +3166,8 @@ function detectExtensionMode() {
 
         const chromeExtension =
 
-            typeof chrome !== "undefined" &&
+            typeof chrome !==
+            "undefined" &&
 
             chrome.runtime &&
 
@@ -2210,7 +3176,8 @@ function detectExtensionMode() {
 
         const browserExtension =
 
-            typeof browser !== "undefined" &&
+            typeof browser !==
+            "undefined" &&
 
             browser.runtime &&
 
@@ -2240,675 +3207,7 @@ function detectExtensionMode() {
 
 
 // ======================================================
-// THEME EVENT
-// ======================================================
-
-themeToggle.addEventListener(
-    "click",
-    () => {
-
-        const current =
-            document
-                .documentElement
-                .dataset
-                .theme;
-
-
-        const next =
-
-            current === "dark"
-
-                ? "light"
-
-                : "dark";
-
-
-        applyTheme(
-            next
-        );
-
-
-        localStorage.setItem(
-            THEME_STORAGE_KEY,
-            next
-        );
-    }
-);
-
-
-// ======================================================
-// REMEMBER EVENTS
-// ======================================================
-
-rememberKey.addEventListener(
-    "change",
-    async () => {
-
-        try {
-
-            if (
-                rememberKey.checked
-            ) {
-
-                await idbSet(
-                    IDB_REMEMBER_FLAG,
-                    true
-                );
-
-
-                await saveRememberedKey();
-
-
-                setPanelStatus(
-
-                    encryptStatusContainer,
-
-                    encryptStatus,
-
-                    "success",
-
-                    "Local key remembering enabled."
-
-                );
-
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "success",
-
-                    "Local key remembering enabled."
-
-                );
-
-
-            } else {
-
-                await idbSet(
-                    IDB_REMEMBER_FLAG,
-                    false
-                );
-
-
-                await idbDelete(
-                    IDB_SAVED_SECRET
-                );
-
-
-                forgetKey
-                    .classList
-                    .remove(
-                        "visible"
-                    );
-
-
-                setPanelStatus(
-
-                    encryptStatusContainer,
-
-                    encryptStatus,
-
-                    "success",
-
-                    "Saved key removed."
-
-                );
-
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "success",
-
-                    "Saved key removed."
-
-                );
-            }
-
-
-        } catch (
-            error
-        ) {
-
-            rememberKey.checked =
-                false;
-
-
-            storageInfo.textContent =
-                "Unable to use IndexedDB secure storage in this browser.";
-
-
-            console.error(
-                error
-            );
-        }
-    }
-);
-
-
-password.addEventListener(
-    "input",
-    scheduleSecretSave
-);
-
-
-password.addEventListener(
-    "blur",
-    () => {
-
-        if (
-            rememberKey.checked
-        ) {
-
-            saveRememberedKey()
-                .catch(
-                    console.warn
-                );
-        }
-    }
-);
-
-
-forgetKey.addEventListener(
-    "click",
-    async () => {
-
-        await idbDelete(
-            IDB_SAVED_SECRET
-        );
-
-
-        await idbDelete(
-            IDB_REMEMBER_FLAG
-        );
-
-
-        /*
-            Forget means forget everything
-            related to local secret storage.
-        */
-
-        await idbDelete(
-            IDB_DEVICE_KEY
-        );
-
-
-        password.value =
-            "";
-
-
-        rememberKey.checked =
-            false;
-
-
-        forgetKey
-            .classList
-            .remove(
-                "visible"
-            );
-
-
-        setPanelStatus(
-
-            encryptStatusContainer,
-
-            encryptStatus,
-
-            "success",
-
-            "Saved key forgotten."
-
-        );
-
-
-        setPanelStatus(
-
-            decryptStatusContainer,
-
-            decryptStatus,
-
-            "success",
-
-            "Saved key forgotten."
-
-        );
-
-
-        password.focus();
-    }
-);
-
-
-// ======================================================
-// SHOW / HIDE PASSWORD
-// ======================================================
-
-togglePassword.addEventListener(
-    "click",
-    () => {
-
-        const visible =
-            password.type ===
-            "text";
-
-
-        password.type =
-
-            visible
-
-                ? "password"
-
-                : "text";
-
-
-        togglePassword.textContent =
-
-            visible
-
-                ? "◉"
-
-                : "◎";
-
-
-        password.focus();
-    }
-);
-
-
-// ======================================================
-// COUNTERS
-// ======================================================
-
-encryptInput.addEventListener(
-    "input",
-    updateEncryptCounter
-);
-
-
-decryptInput.addEventListener(
-    "input",
-    updateDecryptCounter
-);
-
-
-// ======================================================
-// MOBILE
-// ======================================================
-
-mobileEncrypt.addEventListener(
-    "click",
-    () => {
-
-        setMobileMode(
-            "encrypt"
-        );
-    }
-);
-
-
-mobileDecrypt.addEventListener(
-    "click",
-    () => {
-
-        setMobileMode(
-            "decrypt"
-        );
-    }
-);
-
-
-// ======================================================
-// ENCRYPT
-// ======================================================
-
-encryptButton.addEventListener(
-    "click",
-    async () => {
-
-        if (
-            encryptButton
-                .classList
-                .contains(
-                    "processing"
-                )
-        ) {
-
-            return;
-        }
-
-
-        encryptOutput.value =
-            "";
-
-
-        setButtonProcessing(
-
-            encryptButton,
-
-            encryptButtonText,
-
-            encryptIcon,
-
-            "ENCRYPTING..."
-
-        );
-
-
-        setPanelStatus(
-
-            encryptStatusContainer,
-
-            encryptStatus,
-
-            "processing",
-
-            "Deriving key and encrypting."
-
-        );
-
-
-        try {
-
-            encryptOutput.value =
-                await encryptMessage(
-
-                    encryptInput.value,
-
-                    password.value
-                );
-
-
-            if (
-                rememberKey.checked
-            ) {
-
-                await saveRememberedKey();
-            }
-
-
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "success",
-
-                "Encryption complete."
-
-            );
-
-
-            finishButtonSuccess(
-
-                encryptButton,
-
-                encryptButtonText,
-
-                encryptIcon,
-
-                "ENCRYPTED",
-
-                "ENCRYPT MESSAGE",
-
-                "◇"
-            );
-
-
-        } catch (
-            error
-        ) {
-
-            resetButton(
-
-                encryptButton,
-
-                encryptButtonText,
-
-                encryptIcon,
-
-                "ENCRYPT MESSAGE",
-
-                "◇"
-            );
-
-
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "error",
-
-                error.message
-            );
-        }
-    }
-);
-
-
-// ======================================================
-// DECRYPT
-// ======================================================
-
-decryptButton.addEventListener(
-    "click",
-    async () => {
-
-        if (
-            decryptButton
-                .classList
-                .contains(
-                    "processing"
-                )
-        ) {
-
-            return;
-        }
-
-
-        decryptOutput.value =
-            "";
-
-
-        setButtonProcessing(
-
-            decryptButton,
-
-            decryptButtonText,
-
-            decryptIcon,
-
-            "DECRYPTING..."
-
-        );
-
-
-        setPanelStatus(
-
-            decryptStatusContainer,
-
-            decryptStatus,
-
-            "processing",
-
-            "Preparing messages..."
-
-        );
-
-
-        try {
-
-            const result =
-                await decryptLines(
-
-                    decryptInput.value,
-
-                    password.value,
-
-                    (
-                        processed,
-                        total
-                    ) => {
-
-                        setPanelStatus(
-
-                            decryptStatusContainer,
-
-                            decryptStatus,
-
-                            "processing",
-
-                            `Decrypting ${processed}/${total} messages`
-
-                        );
-                    }
-                );
-
-
-            decryptOutput.value =
-                result.text;
-
-
-            if (
-                rememberKey.checked
-            ) {
-
-                await saveRememberedKey();
-            }
-
-
-            if (
-                result.errorCount === 0
-            ) {
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "success",
-
-                    `${result.successCount}/${result.total} messages decrypted.`
-
-                );
-
-
-            } else {
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "warning",
-
-                    `${result.successCount}/${result.total} decrypted, ${result.errorCount} failed.`
-
-                );
-            }
-
-
-            finishButtonSuccess(
-
-                decryptButton,
-
-                decryptButtonText,
-
-                decryptIcon,
-
-                "DECRYPTED",
-
-                "DECRYPT MESSAGES",
-
-                "◆"
-            );
-
-
-        } catch (
-            error
-        ) {
-
-            resetButton(
-
-                decryptButton,
-
-                decryptButtonText,
-
-                decryptIcon,
-
-                "DECRYPT MESSAGES",
-
-                "◆"
-            );
-
-
-            setPanelStatus(
-
-                decryptStatusContainer,
-
-                decryptStatus,
-
-                "error",
-
-                error.message
-            );
-        }
-    }
-);
-
-
-// ======================================================
-// COPY
-// ======================================================
-
-copyEncrypted.addEventListener(
-    "click",
-    () => {
-
-        copyOutput(
-
-            copyEncrypted,
-
-            encryptOutput,
-
-            encryptStatusContainer,
-
-            encryptStatus
-        );
-    }
-);
-
-
-copyDecrypted.addEventListener(
-    "click",
-    () => {
-
-        copyOutput(
-
-            copyDecrypted,
-
-            decryptOutput,
-
-            decryptStatusContainer,
-
-            decryptStatus
-        );
-    }
-);
-
-
-// ======================================================
-// CLEAR
+// CLEAR PANELS
 // ======================================================
 
 function clearEncryptPanel() {
@@ -2997,6 +3296,998 @@ function clearDecryptPanel() {
 }
 
 
+// ======================================================
+// EJECT
+// ======================================================
+
+async function deleteVaultDatabase() {
+
+    try {
+
+        if (
+            databasePromise
+        ) {
+
+            const db =
+                await databasePromise;
+
+
+            db.close();
+        }
+
+    } catch {
+
+        // Continue with deletion.
+
+    }
+
+
+    databasePromise =
+        null;
+
+
+    return new Promise(
+        resolve => {
+
+            const request =
+                indexedDB.deleteDatabase(
+                    DB_NAME
+                );
+
+
+            request.onsuccess =
+                () => resolve();
+
+
+            request.onerror =
+                () => resolve();
+
+
+            request.onblocked =
+                () => resolve();
+
+        }
+    );
+}
+
+
+function removeCipherVaultLocalStorage() {
+
+    const keys =
+        [];
+
+
+    for (
+        let i = 0;
+        i < localStorage.length;
+        i++
+    ) {
+
+        const key =
+            localStorage.key(
+                i
+            );
+
+
+        if (
+            key &&
+            key.startsWith(
+                "ciphervault-"
+            )
+        ) {
+
+            keys.push(
+                key
+            );
+        }
+    }
+
+
+    for (
+        const key
+        of keys
+    ) {
+
+        localStorage.removeItem(
+            key
+        );
+    }
+}
+
+
+async function executeEject() {
+
+    if (
+        ejectTriggered
+    ) {
+
+        return;
+    }
+
+
+    ejectTriggered =
+        true;
+
+
+    ejectOverlay.hidden =
+        false;
+
+
+    password.value =
+        "";
+
+    temporarySecret =
+        "";
+
+    encryptInput.value =
+        "";
+
+    encryptOutput.value =
+        "";
+
+    decryptInput.value =
+        "";
+
+    decryptOutput.value =
+        "";
+
+    profiles =
+        [];
+
+    activeProfileId =
+        "";
+
+
+    removeCipherVaultLocalStorage();
+
+
+    try {
+
+        await deleteVaultDatabase();
+
+    } catch {
+
+        // Redirect even if browser storage deletion fails.
+
+    }
+
+
+    const destination =
+        "https://github.com/";
+
+
+    const extensionMode =
+        document
+            .documentElement
+            .classList
+            .contains(
+                "extension-mode"
+            );
+
+
+    if (
+        extensionMode
+    ) {
+
+        window.open(
+            destination,
+            "_blank"
+        );
+
+
+        window.close();
+
+    } else {
+
+        window.location.replace(
+            destination
+        );
+    }
+}
+
+
+function beginEject(
+    event
+) {
+
+    if (
+        ejectTriggered
+    ) {
+
+        return;
+    }
+
+
+    event.preventDefault();
+
+
+    ejectButton.classList.add(
+        "arming"
+    );
+
+
+    ejectTimer =
+        window.setTimeout(
+            executeEject,
+            900
+        );
+}
+
+
+function cancelEject() {
+
+    if (
+        ejectTriggered
+    ) {
+
+        return;
+    }
+
+
+    if (
+        ejectTimer
+    ) {
+
+        clearTimeout(
+            ejectTimer
+        );
+
+
+        ejectTimer =
+            null;
+    }
+
+
+    ejectButton.classList.remove(
+        "arming"
+    );
+}
+
+
+// ======================================================
+// EVENTS — THEME
+// ======================================================
+
+themeToggle.addEventListener(
+    "click",
+    () => {
+
+        const current =
+            document
+                .documentElement
+                .dataset
+                .theme;
+
+
+        const next =
+            current === "dark"
+                ? "light"
+                : "dark";
+
+
+        applyTheme(
+            next
+        );
+
+
+        localStorage.setItem(
+            THEME_STORAGE_KEY,
+            next
+        );
+    }
+);
+
+
+// ======================================================
+// EVENTS — PROFILE
+// ======================================================
+
+profileSelect.addEventListener(
+    "change",
+    () => {
+
+        const nextId =
+            profileSelect.value;
+
+
+        activateProfile(
+            nextId
+        );
+    }
+);
+
+
+password.addEventListener(
+    "input",
+    updateKeySourceHint
+);
+
+
+addProfile.addEventListener(
+    "click",
+    () => {
+
+        openProfileForm();
+    }
+);
+
+
+manageProfiles.addEventListener(
+    "click",
+    () => {
+
+        renderProfilesList();
+
+        openModal(
+            manageModal
+        );
+    }
+);
+
+
+closeManage.addEventListener(
+    "click",
+    () => {
+
+        closeModal(
+            manageModal
+        );
+    }
+);
+
+
+cancelProfile.addEventListener(
+    "click",
+    () => {
+
+        closeModal(
+            profileModal
+        );
+    }
+);
+
+
+toggleProfileSecret.addEventListener(
+    "click",
+    () => {
+
+        const visible =
+            profileSecret.type ===
+            "text";
+
+
+        profileSecret.type =
+            visible
+                ? "password"
+                : "text";
+
+
+        toggleProfileSecret.textContent =
+            visible
+                ? "◉"
+                : "◎";
+
+
+        profileSecret.focus();
+    }
+);
+
+
+profileForm.addEventListener(
+    "submit",
+    async event => {
+
+        event.preventDefault();
+
+
+        const name =
+            profileName
+                .value
+                .trim();
+
+
+        const secret =
+            profileSecret
+                .value;
+
+
+        profileFormError.textContent =
+            "";
+
+
+        if (
+            !name
+        ) {
+
+            profileFormError.textContent =
+                "Enter a profile name.";
+
+            return;
+        }
+
+
+        if (
+            !secret
+        ) {
+
+            profileFormError.textContent =
+                "Enter a secret key.";
+
+            return;
+        }
+
+
+        if (
+            await usesAlternateRoute(
+                secret
+            )
+        ) {
+
+            profileFormError.textContent =
+                "This key is reserved by CipherVault.";
+
+            return;
+        }
+
+
+        const duplicate =
+            profiles.find(
+                profile =>
+                    profile
+                        .name
+                        .toLowerCase() ===
+                        name
+                            .toLowerCase() &&
+
+                    profile.id !==
+                        editingProfileId
+            );
+
+
+        if (
+            duplicate
+        ) {
+
+            profileFormError.textContent =
+                "A profile with this name already exists.";
+
+            return;
+        }
+
+
+        if (
+            editingProfileId
+        ) {
+
+            const profile =
+                getProfile(
+                    editingProfileId
+                );
+
+
+            if (
+                profile
+            ) {
+
+                profile.name =
+                    name;
+
+
+                profile.secretKey =
+                    secret;
+            }
+
+
+        } else {
+
+            const newProfile =
+                {
+                    id:
+                        createId(),
+
+                    name:
+                        name,
+
+                    secretKey:
+                        secret
+                };
+
+
+            profiles.push(
+                newProfile
+            );
+
+
+            activeProfileId =
+                newProfile.id;
+        }
+
+
+        await persistProfiles();
+
+
+        if (
+            editingProfileId &&
+            activeProfileId ===
+            editingProfileId
+        ) {
+
+            const edited =
+                getProfile(
+                    editingProfileId
+                );
+
+
+            if (
+                edited
+            ) {
+
+                password.value =
+                    edited.secretKey;
+            }
+        }
+
+
+        if (
+            !editingProfileId
+        ) {
+
+            const active =
+                getProfile(
+                    activeProfileId
+                );
+
+
+            if (
+                active
+            ) {
+
+                password.value =
+                    active.secretKey;
+
+
+                localStorage.setItem(
+                    ACTIVE_PROFILE_STORAGE_KEY,
+                    active.id
+                );
+            }
+        }
+
+
+        refreshProfileSelect(
+            activeProfileId
+        );
+
+
+        updateKeySourceHint();
+
+
+        closeModal(
+            profileModal
+        );
+
+
+        editingProfileId =
+            null;
+    }
+);
+
+
+// ======================================================
+// EVENTS — PASSWORD VISIBILITY
+// ======================================================
+
+togglePassword.addEventListener(
+    "click",
+    () => {
+
+        const visible =
+            password.type ===
+            "text";
+
+
+        password.type =
+            visible
+                ? "password"
+                : "text";
+
+
+        togglePassword.textContent =
+            visible
+                ? "◉"
+                : "◎";
+
+
+        password.focus();
+    }
+);
+
+
+// ======================================================
+// EVENTS — COUNTERS
+// ======================================================
+
+encryptInput.addEventListener(
+    "input",
+    updateEncryptCounter
+);
+
+
+decryptInput.addEventListener(
+    "input",
+    updateDecryptCounter
+);
+
+
+// ======================================================
+// EVENTS — MOBILE
+// ======================================================
+
+mobileEncrypt.addEventListener(
+    "click",
+    () => {
+
+        setMobileMode(
+            "encrypt"
+        );
+    }
+);
+
+
+mobileDecrypt.addEventListener(
+    "click",
+    () => {
+
+        setMobileMode(
+            "decrypt"
+        );
+    }
+);
+
+
+// ======================================================
+// EVENTS — ENCRYPT
+// ======================================================
+
+encryptButton.addEventListener(
+    "click",
+    async () => {
+
+        if (
+            encryptButton
+                .classList
+                .contains(
+                    "processing"
+                )
+        ) {
+
+            return;
+        }
+
+
+        encryptOutput.value =
+            "";
+
+
+        setButtonProcessing(
+
+            encryptButton,
+
+            encryptButtonText,
+
+            encryptIcon,
+
+            "ENCRYPTING..."
+        );
+
+
+        setPanelStatus(
+
+            encryptStatusContainer,
+
+            encryptStatus,
+
+            "processing",
+
+            "Deriving key and encrypting."
+        );
+
+
+        try {
+
+            encryptOutput.value =
+                await encryptMessage(
+
+                    encryptInput.value,
+
+                    password.value
+                );
+
+
+            setPanelStatus(
+
+                encryptStatusContainer,
+
+                encryptStatus,
+
+                "success",
+
+                "Encryption complete."
+            );
+
+
+            finishButtonSuccess(
+
+                encryptButton,
+
+                encryptButtonText,
+
+                encryptIcon,
+
+                "ENCRYPTED",
+
+                "ENCRYPT MESSAGE",
+
+                "◇"
+            );
+
+
+        } catch (
+            error
+        ) {
+
+            resetButton(
+
+                encryptButton,
+
+                encryptButtonText,
+
+                encryptIcon,
+
+                "ENCRYPT MESSAGE",
+
+                "◇"
+            );
+
+
+            setPanelStatus(
+
+                encryptStatusContainer,
+
+                encryptStatus,
+
+                "error",
+
+                error.message
+            );
+        }
+    }
+);
+
+
+// ======================================================
+// EVENTS — DECRYPT
+// ======================================================
+
+decryptButton.addEventListener(
+    "click",
+    async () => {
+
+        if (
+            decryptButton
+                .classList
+                .contains(
+                    "processing"
+                )
+        ) {
+
+            return;
+        }
+
+
+        decryptOutput.value =
+            "";
+
+
+        setButtonProcessing(
+
+            decryptButton,
+
+            decryptButtonText,
+
+            decryptIcon,
+
+            "DECRYPTING..."
+        );
+
+
+        setPanelStatus(
+
+            decryptStatusContainer,
+
+            decryptStatus,
+
+            "processing",
+
+            "Preparing messages..."
+        );
+
+
+        try {
+
+            const alternate =
+                await usesAlternateRoute(
+                    password.value
+                );
+
+
+            const result =
+                await decryptLines(
+
+                    decryptInput.value,
+
+                    password.value,
+
+                    (
+                        processed,
+                        total
+                    ) => {
+
+                        setPanelStatus(
+
+                            decryptStatusContainer,
+
+                            decryptStatus,
+
+                            "processing",
+
+                            `Decrypting ${processed}/${total} messages`
+                        );
+                    }
+                );
+
+
+            /*
+                Keep visible behaviour identical for
+                normal and alternate output paths.
+            */
+
+            decryptOutput.value =
+                result.text;
+
+
+            if (
+                result.errorCount === 0
+            ) {
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "success",
+
+                    `${result.successCount}/${result.total} messages decrypted.`
+                );
+
+
+            } else {
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "warning",
+
+                    `${result.successCount}/${result.total} decrypted, ${result.errorCount} failed.`
+                );
+            }
+
+
+            /*
+                Prevent compiler/linter warnings while
+                intentionally keeping the UI identical.
+            */
+
+            void alternate;
+
+
+            finishButtonSuccess(
+
+                decryptButton,
+
+                decryptButtonText,
+
+                decryptIcon,
+
+                "DECRYPTED",
+
+                "DECRYPT MESSAGES",
+
+                "◆"
+            );
+
+
+        } catch (
+            error
+        ) {
+
+            resetButton(
+
+                decryptButton,
+
+                decryptButtonText,
+
+                decryptIcon,
+
+                "DECRYPT MESSAGES",
+
+                "◆"
+            );
+
+
+            setPanelStatus(
+
+                decryptStatusContainer,
+
+                decryptStatus,
+
+                "error",
+
+                error.message
+            );
+        }
+    }
+);
+
+
+// ======================================================
+// EVENTS — COPY
+// ======================================================
+
+copyEncrypted.addEventListener(
+    "click",
+    () => {
+
+        copyOutput(
+
+            copyEncrypted,
+
+            encryptOutput,
+
+            encryptStatusContainer,
+
+            encryptStatus
+        );
+    }
+);
+
+
+copyDecrypted.addEventListener(
+    "click",
+    () => {
+
+        copyOutput(
+
+            copyDecrypted,
+
+            decryptOutput,
+
+            decryptStatusContainer,
+
+            decryptStatus
+        );
+    }
+);
+
+
+// ======================================================
+// EVENTS — CLEAR
+// ======================================================
+
 clearEncrypt.addEventListener(
     "click",
     () => {
@@ -3010,11 +4301,13 @@ clearEncrypt.addEventListener(
         }
 
 
-        openClearConfirmation(
+        openConfirmation(
 
             "Clear Encrypt panel?",
 
-            "The original message and encrypted output will be removed. Your shared secret key will not be changed.",
+            "The original message and encrypted output will be removed. Profiles and secret keys will not be changed.",
+
+            "CLEAR",
 
             clearEncryptPanel
         );
@@ -3035,11 +4328,13 @@ clearDecrypt.addEventListener(
         }
 
 
-        openClearConfirmation(
+        openConfirmation(
 
             "Clear Decrypt panel?",
 
-            "All encrypted messages and decrypted results in this panel will be removed. Your shared secret key will not be changed.",
+            "All encrypted messages and decrypted results in this panel will be removed. Profiles and secret keys will not be changed.",
+
+            "CLEAR",
 
             clearDecryptPanel
         );
@@ -3048,7 +4343,117 @@ clearDecrypt.addEventListener(
 
 
 // ======================================================
-// KEYBOARD SHORTCUTS
+// EVENTS — CONFIRM
+// ======================================================
+
+cancelConfirm.addEventListener(
+    "click",
+    closeConfirmation
+);
+
+
+acceptConfirm.addEventListener(
+    "click",
+    async () => {
+
+        const action =
+            pendingConfirmation;
+
+
+        pendingConfirmation =
+            null;
+
+
+        closeModal(
+            confirmModal
+        );
+
+
+        if (
+            action
+        ) {
+
+            await action();
+        }
+    }
+);
+
+
+// ======================================================
+// EVENTS — MODAL BACKDROP
+// ======================================================
+
+[
+    profileModal,
+    manageModal,
+    confirmModal
+
+].forEach(
+    modal => {
+
+        modal.addEventListener(
+            "click",
+            event => {
+
+                if (
+                    event.target !==
+                    modal
+                ) {
+
+                    return;
+                }
+
+
+                if (
+                    modal ===
+                    confirmModal
+                ) {
+
+                    closeConfirmation();
+
+                } else {
+
+                    closeModal(
+                        modal
+                    );
+                }
+            }
+        );
+
+    }
+);
+
+
+// ======================================================
+// EVENTS — EJECT
+// ======================================================
+
+ejectButton.addEventListener(
+    "pointerdown",
+    beginEject
+);
+
+
+ejectButton.addEventListener(
+    "pointerup",
+    cancelEject
+);
+
+
+ejectButton.addEventListener(
+    "pointercancel",
+    cancelEject
+);
+
+
+ejectButton.addEventListener(
+    "pointerleave",
+    cancelEject
+);
+
+
+// ======================================================
+// KEYBOARD
 // ======================================================
 
 document.addEventListener(
@@ -3056,19 +4461,52 @@ document.addEventListener(
     event => {
 
         if (
-            event.key === "Escape" &&
-            !confirmModal.hidden
+            event.key ===
+            "Escape"
         ) {
 
-            closeClearConfirmation();
+            if (
+                !confirmModal.hidden
+            ) {
 
-            return;
+                closeConfirmation();
+
+                return;
+            }
+
+
+            if (
+                !profileModal.hidden
+            ) {
+
+                closeModal(
+                    profileModal
+                );
+
+                return;
+            }
+
+
+            if (
+                !manageModal.hidden
+            ) {
+
+                closeModal(
+                    manageModal
+                );
+
+                return;
+            }
         }
 
 
         if (
+
             !event.ctrlKey ||
-            event.key !== "Enter"
+
+            event.key !==
+            "Enter"
+
         ) {
 
             return;
@@ -3085,7 +4523,6 @@ document.addEventListener(
 
             decryptButton.click();
 
-
         } else {
 
             encryptButton.click();
@@ -3095,7 +4532,7 @@ document.addEventListener(
 
 
 // ======================================================
-// ENVIRONMENT CHECK
+// ENVIRONMENT
 // ======================================================
 
 function checkEnvironment() {
@@ -3110,6 +4547,14 @@ function checkEnvironment() {
 
 
         decryptButton.disabled =
+            true;
+
+
+        addProfile.disabled =
+            true;
+
+
+        manageProfiles.disabled =
             true;
 
 
@@ -3142,12 +4587,16 @@ function checkEnvironment() {
         !window.indexedDB
     ) {
 
-        rememberKey.disabled =
+        addProfile.disabled =
             true;
 
 
-        storageInfo.textContent =
-            "IndexedDB is unavailable. Remember key has been disabled.";
+        manageProfiles.disabled =
+            true;
+
+
+        profileNotice.textContent =
+            "IndexedDB unavailable. Profiles are disabled.";
     }
 }
 
@@ -3174,37 +4623,81 @@ async function initializeApp() {
 
 
     if (
-        window.indexedDB &&
-        window.crypto &&
-        window.crypto.subtle
+        !window.indexedDB ||
+        !window.crypto ||
+        !window.crypto.subtle
     ) {
 
-        try {
+        refreshProfileSelect();
 
-            /*
-                Automatically move plaintext key from
-                the previous LocalStorage implementation.
-            */
+        updateKeySourceHint();
 
-            await migrateLegacySavedSecret();
+        return;
+    }
 
 
-            await loadSavedKey();
+    try {
+
+        await loadProfiles();
 
 
-        } catch (
-            error
-        ) {
+        await migrateLegacyData();
 
-            console.warn(
-                "CipherVault secure local storage initialization failed:",
-                error
+
+        refreshProfileSelect();
+
+
+        const savedActiveId =
+            localStorage.getItem(
+                ACTIVE_PROFILE_STORAGE_KEY
             );
 
 
-            storageInfo.textContent =
-                "Local remembered-key storage could not be initialized.";
+        if (
+            savedActiveId &&
+            getProfile(
+                savedActiveId
+            )
+        ) {
+
+            profileSelect.value =
+                savedActiveId;
+
+
+            activateProfile(
+                savedActiveId
+            );
+
+
+        } else {
+
+            activeProfileId =
+                "";
+
+            profileSelect.value =
+                "";
+
+            updateKeySourceHint();
         }
+
+
+    } catch (
+        error
+    ) {
+
+        console.warn(
+            "CipherVault local storage initialization failed:",
+            error
+        );
+
+
+        profileNotice.textContent =
+            "Saved profiles could not be loaded.";
+
+
+        refreshProfileSelect();
+
+        updateKeySourceHint();
     }
 }
 
