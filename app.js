@@ -4,13 +4,11 @@
 
 
 // ======================================================
-// CRYPTO CONFIGURATION
+// CRYPTO CONFIG
 // ======================================================
-
 
 const encoder =
     new TextEncoder();
-
 
 const decoder =
     new TextDecoder();
@@ -19,142 +17,61 @@ const decoder =
 const VERSION =
     1;
 
-
 const SALT_LENGTH =
     16;
-
 
 const IV_LENGTH =
     12;
 
-
 const GCM_TAG_LENGTH =
     128;
-
 
 const PBKDF2_ITERATIONS =
     300000;
 
 
-
 // ======================================================
-// LOCAL STORAGE KEYS
+// STORAGE
 // ======================================================
-
 
 const THEME_STORAGE_KEY =
     "ciphervault-theme";
 
-
 const KEY_STORAGE_KEY =
     "ciphervault-saved-key";
 
-
 const REMEMBER_STORAGE_KEY =
     "ciphervault-remember-key";
-
 
 
 // ======================================================
 // DOM
 // ======================================================
 
-
-const input =
-    document.getElementById(
-        "input"
-    );
-
-
 const password =
     document.getElementById(
         "password"
     );
-
-
-const output =
-    document.getElementById(
-        "output"
-    );
-
-
-const status =
-    document.getElementById(
-        "status"
-    );
-
-
-const statusContainer =
-    document.getElementById(
-        "statusContainer"
-    );
-
-
-const processButton =
-    document.getElementById(
-        "process"
-    );
-
-
-const processText =
-    document.getElementById(
-        "processText"
-    );
-
-
-const processIcon =
-    document.getElementById(
-        "processIcon"
-    );
-
-
-const encryptModeButton =
-    document.getElementById(
-        "encryptMode"
-    );
-
-
-const decryptModeButton =
-    document.getElementById(
-        "decryptMode"
-    );
-
-
-const modeSwitch =
-    document.getElementById(
-        "modeSwitch"
-    );
-
-
-const copyButton =
-    document.getElementById(
-        "copy"
-    );
-
-
-const clearButton =
-    document.getElementById(
-        "clear"
-    );
-
 
 const togglePassword =
     document.getElementById(
         "togglePassword"
     );
 
-
-const inputCounter =
+const rememberKey =
     document.getElementById(
-        "inputCounter"
+        "rememberKey"
     );
 
+const forgetKey =
+    document.getElementById(
+        "forgetKey"
+    );
 
 const themeToggle =
     document.getElementById(
         "themeToggle"
     );
-
 
 const themeIcon =
     document.getElementById(
@@ -162,33 +79,138 @@ const themeIcon =
     );
 
 
-const rememberKey =
+// Encrypt
+
+const encryptPanel =
     document.getElementById(
-        "rememberKey"
+        "encryptPanel"
+    );
+
+const encryptInput =
+    document.getElementById(
+        "encryptInput"
+    );
+
+const encryptOutput =
+    document.getElementById(
+        "encryptOutput"
+    );
+
+const encryptCounter =
+    document.getElementById(
+        "encryptCounter"
+    );
+
+const encryptButton =
+    document.getElementById(
+        "encryptButton"
+    );
+
+const encryptButtonText =
+    document.getElementById(
+        "encryptButtonText"
+    );
+
+const encryptIcon =
+    document.getElementById(
+        "encryptIcon"
+    );
+
+const copyEncrypted =
+    document.getElementById(
+        "copyEncrypted"
+    );
+
+const clearEncrypt =
+    document.getElementById(
+        "clearEncrypt"
+    );
+
+const encryptStatusContainer =
+    document.getElementById(
+        "encryptStatusContainer"
+    );
+
+const encryptStatus =
+    document.getElementById(
+        "encryptStatus"
     );
 
 
-const forgetKey =
+// Decrypt
+
+const decryptPanel =
     document.getElementById(
-        "forgetKey"
+        "decryptPanel"
+    );
+
+const decryptInput =
+    document.getElementById(
+        "decryptInput"
+    );
+
+const decryptOutput =
+    document.getElementById(
+        "decryptOutput"
+    );
+
+const decryptCounter =
+    document.getElementById(
+        "decryptCounter"
+    );
+
+const decryptButton =
+    document.getElementById(
+        "decryptButton"
+    );
+
+const decryptButtonText =
+    document.getElementById(
+        "decryptButtonText"
+    );
+
+const decryptIcon =
+    document.getElementById(
+        "decryptIcon"
+    );
+
+const copyDecrypted =
+    document.getElementById(
+        "copyDecrypted"
+    );
+
+const clearDecrypt =
+    document.getElementById(
+        "clearDecrypt"
+    );
+
+const decryptStatusContainer =
+    document.getElementById(
+        "decryptStatusContainer"
+    );
+
+const decryptStatus =
+    document.getElementById(
+        "decryptStatus"
     );
 
 
+// Mobile
 
-// ======================================================
-// APPLICATION STATE
-// ======================================================
+const mobileEncrypt =
+    document.getElementById(
+        "mobileEncrypt"
+    );
 
-
-let currentMode =
-    "encrypt";
-
+const mobileDecrypt =
+    document.getElementById(
+        "mobileDecrypt"
+    );
 
 
 // ======================================================
 // BASE64
 // ======================================================
-
 
 function bytesToBase64(
     bytes
@@ -216,7 +238,6 @@ function bytesToBase64(
 }
 
 
-
 function base64ToBytes(
     base64
 ) {
@@ -231,40 +252,16 @@ function base64ToBytes(
 
 
     if (
-        cleanedBase64.length === 0
-    ) {
 
-        throw new Error(
-            "Invalid Base64 payload."
-        );
-    }
+        cleanedBase64.length === 0 ||
 
+        cleanedBase64.length % 4 !== 0 ||
 
-    /*
-        Base64 should normally have
-        a length divisible by 4.
-    */
-
-    if (
-        cleanedBase64.length % 4 !== 0
-    ) {
-
-        throw new Error(
-            "Invalid Base64 payload."
-        );
-    }
-
-
-    /*
-        Only allow standard Base64
-        characters.
-    */
-
-    if (
         !/^[A-Za-z0-9+/]*={0,2}$/
             .test(
                 cleanedBase64
             )
+
     ) {
 
         throw new Error(
@@ -314,21 +311,14 @@ function base64ToBytes(
 }
 
 
-
 // ======================================================
 // KEY DERIVATION
 // ======================================================
-
 
 async function deriveKey(
     passwordValue,
     salt
 ) {
-
-    /*
-        Import the user's password
-        as PBKDF2 key material.
-    */
 
     const passwordMaterial =
         await crypto.subtle.importKey(
@@ -351,11 +341,6 @@ async function deriveKey(
             ]
         );
 
-
-    /*
-        Derive a 256-bit AES key
-        using PBKDF2-SHA256.
-    */
 
     return crypto.subtle.deriveKey(
 
@@ -397,11 +382,9 @@ async function deriveKey(
 }
 
 
-
 // ======================================================
-// ENCRYPTION
+// ENCRYPT
 // ======================================================
-
 
 async function encryptMessage(
     message,
@@ -428,12 +411,6 @@ async function encryptMessage(
     }
 
 
-
-    /*
-        Generate a new random salt
-        for every encryption.
-    */
-
     const salt =
         crypto.getRandomValues(
 
@@ -442,12 +419,6 @@ async function encryptMessage(
             )
         );
 
-
-
-    /*
-        AES-GCM recommends a
-        96-bit / 12-byte IV.
-    */
 
     const iv =
         crypto.getRandomValues(
@@ -458,19 +429,12 @@ async function encryptMessage(
         );
 
 
-
     const key =
         await deriveKey(
             passwordValue,
             salt
         );
 
-
-
-    /*
-        AES-GCM encrypts and also
-        generates an authentication tag.
-    */
 
     const encryptedBuffer =
         await crypto.subtle.encrypt(
@@ -496,30 +460,21 @@ async function encryptMessage(
         );
 
 
-
     const ciphertext =
         new Uint8Array(
             encryptedBuffer
         );
 
 
-
     /*
-        CipherVault payload format:
+        Payload:
 
-        [ VERSION ]
-        1 byte
-
-        [ SALT ]
-        16 bytes
-
-        [ IV ]
-        12 bytes
-
-        [ CIPHERTEXT + GCM TAG ]
-        variable
+        VERSION       1 byte
+        SALT          16 bytes
+        IV            12 bytes
+        CIPHERTEXT    variable
+        GCM TAG       included by WebCrypto
     */
-
 
     const payload =
         new Uint8Array(
@@ -538,9 +493,6 @@ async function encryptMessage(
         0;
 
 
-
-    // VERSION
-
     payload[offset] =
         VERSION;
 
@@ -548,9 +500,6 @@ async function encryptMessage(
     offset +=
         1;
 
-
-
-    // SALT
 
     payload.set(
         salt,
@@ -562,9 +511,6 @@ async function encryptMessage(
         SALT_LENGTH;
 
 
-
-    // IV
-
     payload.set(
         iv,
         offset
@@ -575,14 +521,10 @@ async function encryptMessage(
         IV_LENGTH;
 
 
-
-    // CIPHERTEXT + TAG
-
     payload.set(
         ciphertext,
         offset
     );
-
 
 
     return bytesToBase64(
@@ -591,11 +533,9 @@ async function encryptMessage(
 }
 
 
-
 // ======================================================
-// DECRYPTION
+// SINGLE MESSAGE DECRYPT
 // ======================================================
-
 
 async function decryptMessage(
     encryptedBase64,
@@ -607,7 +547,7 @@ async function decryptMessage(
     ) {
 
         throw new Error(
-            "Enter an encrypted Base64 message."
+            "Encrypted message is empty."
         );
     }
 
@@ -622,23 +562,19 @@ async function decryptMessage(
     }
 
 
-
     const payload =
         base64ToBytes(
             encryptedBase64
         );
 
 
-
     /*
-        Minimum:
+        minimum:
 
-        version = 1
-        salt = 16
-        iv = 12
-        GCM tag = 16
-
-        45 bytes minimum.
+        1  version
+        16 salt
+        12 IV
+        16 authentication tag
     */
 
     const minimumPayloadLength =
@@ -652,7 +588,6 @@ async function decryptMessage(
         16;
 
 
-
     if (
         payload.length <
         minimumPayloadLength
@@ -664,10 +599,8 @@ async function decryptMessage(
     }
 
 
-
     let offset =
         0;
-
 
 
     // VERSION
@@ -680,7 +613,6 @@ async function decryptMessage(
         1;
 
 
-
     if (
         version !== VERSION
     ) {
@@ -689,7 +621,6 @@ async function decryptMessage(
             `Unsupported payload version: ${version}`
         );
     }
-
 
 
     // SALT
@@ -708,7 +639,6 @@ async function decryptMessage(
         SALT_LENGTH;
 
 
-
     // IV
 
     const iv =
@@ -725,14 +655,12 @@ async function decryptMessage(
         IV_LENGTH;
 
 
-
-    // CIPHERTEXT + TAG
+    // CIPHER
 
     const ciphertext =
         payload.slice(
             offset
         );
-
 
 
     const key =
@@ -742,18 +670,7 @@ async function decryptMessage(
         );
 
 
-
     try {
-
-        /*
-            AES-GCM authentication means
-            this will fail if:
-
-            - password is wrong
-            - ciphertext changed
-            - IV changed
-            - tag changed
-        */
 
         const decryptedBuffer =
             await crypto.subtle.decrypt(
@@ -777,7 +694,6 @@ async function decryptMessage(
             );
 
 
-
         return decoder.decode(
             decryptedBuffer
         );
@@ -792,220 +708,316 @@ async function decryptMessage(
 }
 
 
+// ======================================================
+// MULTI-LINE DECRYPT
+// ======================================================
+
+async function decryptLines(
+    inputValue,
+    passwordValue
+) {
+
+    if (
+        !passwordValue
+    ) {
+
+        throw new Error(
+            "Enter the secret key."
+        );
+    }
+
+
+    /*
+        Cada linha não vazia é considerada
+        uma mensagem CipherVault independente.
+    */
+
+    const lines =
+        inputValue
+            .replace(
+                /\r/g,
+                ""
+            )
+            .split(
+                "\n"
+            );
+
+
+    const nonEmptyCount =
+        lines
+            .filter(
+                line =>
+                    line
+                        .trim()
+                        .length > 0
+            )
+            .length;
+
+
+    if (
+        nonEmptyCount === 0
+    ) {
+
+        throw new Error(
+            "Enter at least one encrypted message."
+        );
+    }
+
+
+    const results =
+        [];
+
+
+    let successCount =
+        0;
+
+
+    let errorCount =
+        0;
+
+
+    /*
+        Processamento sequencial proposital.
+
+        Evita disparar dezenas de operações
+        PBKDF2 pesadas simultaneamente.
+    */
+
+    for (
+        let index = 0;
+        index < lines.length;
+        index++
+    ) {
+
+        const line =
+            lines[index]
+                .trim();
+
+
+        /*
+            Preserva linhas vazias
+            no resultado.
+        */
+
+        if (
+            !line
+        ) {
+
+            results.push(
+                ""
+            );
+
+            continue;
+        }
+
+
+        try {
+
+            const decrypted =
+                await decryptMessage(
+
+                    line,
+
+                    passwordValue
+                );
+
+
+            results.push(
+                decrypted
+            );
+
+
+            successCount +=
+                1;
+
+
+        } catch (
+            error
+        ) {
+
+            results.push(
+
+                `[ERROR line ${index + 1}: ${error.message}]`
+
+            );
+
+
+            errorCount +=
+                1;
+        }
+    }
+
+
+    return {
+
+        text:
+            results.join(
+                "\n"
+            ),
+
+        total:
+            nonEmptyCount,
+
+        successCount:
+            successCount,
+
+        errorCount:
+            errorCount
+
+    };
+}
+
 
 // ======================================================
-// STATUS FUNCTIONS
+// STATUS
 // ======================================================
 
+function setPanelStatus(
+    container,
+    textElement,
+    type,
+    message
+) {
 
-function setReadyStatus() {
-
-    statusContainer.className =
+    container.className =
         "status-container";
 
 
-    status.textContent =
-        "READY";
-}
+    if (
+        type &&
+        type !== "ready"
+    ) {
+
+        container
+            .classList
+            .add(
+                type
+            );
+    }
 
 
-
-function setProcessingStatus() {
-
-    statusContainer.className =
-        "status-container processing";
-
-
-    status.textContent =
-
-        currentMode ===
-        "encrypt"
-
-            ? "DERIVING KEY AND ENCRYPTING"
-
-            : "VERIFYING AND DECRYPTING";
-}
-
-
-
-function setSuccessStatus() {
-
-    statusContainer.className =
-        "status-container success";
-
-
-    status.textContent =
-
-        currentMode ===
-        "encrypt"
-
-            ? "ENCRYPTION COMPLETE"
-
-            : "DECRYPTION COMPLETE";
-}
-
-
-
-function setErrorStatus(
-    message
-) {
-
-    statusContainer.className =
-        "status-container error";
-
-
-    status.textContent =
+    textElement.textContent =
         message.toUpperCase();
 }
 
 
+// ======================================================
+// BUTTON HELPERS
+// ======================================================
 
-function setCustomSuccessStatus(
+function setButtonProcessing(
+    button,
+    textElement,
+    iconElement,
     message
 ) {
 
-    statusContainer.className =
-        "status-container success";
+    button
+        .classList
+        .remove(
+            "success"
+        );
 
 
-    status.textContent =
-        message.toUpperCase();
+    button
+        .classList
+        .add(
+            "processing"
+        );
+
+
+    iconElement.textContent =
+        "◌";
+
+
+    textElement.textContent =
+        message;
 }
 
 
+function finishButtonSuccess(
+    button,
+    textElement,
+    iconElement,
+    successText,
+    idleText,
+    idleIcon
+) {
 
-// ======================================================
-// MODE
-// ======================================================
+    button
+        .classList
+        .remove(
+            "processing"
+        );
 
 
-function activateEncryptMode() {
-
-    currentMode =
-        "encrypt";
-
-
-    encryptModeButton
+    button
         .classList
         .add(
-            "active"
+            "success"
         );
 
 
-    decryptModeButton
-        .classList
-        .remove(
-            "active"
-        );
+    iconElement.textContent =
+        "✓";
 
 
-    modeSwitch
-        .classList
-        .remove(
-            "decrypt"
-        );
+    textElement.textContent =
+        successText;
 
 
-    processText.textContent =
-        "ENCRYPT MESSAGE";
+    window.setTimeout(
+        () => {
+
+            button
+                .classList
+                .remove(
+                    "success"
+                );
 
 
-    processIcon.textContent =
-        "◇";
+            iconElement.textContent =
+                idleIcon;
 
 
-    input.placeholder =
-        "Enter message to encrypt...";
+            textElement.textContent =
+                idleText;
 
+        },
 
-    output.placeholder =
-        "Encrypted Base64 output will appear here...";
-
-
-    output.value =
-        "";
-
-
-    setReadyStatus();
+        850
+    );
 }
 
 
+function resetButton(
+    button,
+    textElement,
+    iconElement,
+    idleText,
+    idleIcon
+) {
 
-function activateDecryptMode() {
-
-    currentMode =
-        "decrypt";
-
-
-    decryptModeButton
-        .classList
-        .add(
-            "active"
-        );
-
-
-    encryptModeButton
+    button
         .classList
         .remove(
-            "active"
+            "processing",
+            "success"
         );
 
 
-    modeSwitch
-        .classList
-        .add(
-            "decrypt"
-        );
+    iconElement.textContent =
+        idleIcon;
 
 
-    processText.textContent =
-        "DECRYPT MESSAGE";
-
-
-    processIcon.textContent =
-        "◆";
-
-
-    input.placeholder =
-        "Paste encrypted Base64 payload...";
-
-
-    output.placeholder =
-        "Decrypted message will appear here...";
-
-
-    output.value =
-        "";
-
-
-    setReadyStatus();
+    textElement.textContent =
+        idleText;
 }
-
-
-
-// ======================================================
-// MODE EVENTS
-// ======================================================
-
-
-encryptModeButton.addEventListener(
-    "click",
-    activateEncryptMode
-);
-
-
-
-decryptModeButton.addEventListener(
-    "click",
-    activateDecryptMode
-);
-
 
 
 // ======================================================
 // THEME
 // ======================================================
-
 
 function applyTheme(
     theme
@@ -1018,21 +1030,14 @@ function applyTheme(
             theme;
 
 
-    if (
-        theme ===
-        "dark"
-    ) {
+    themeIcon.textContent =
 
-        themeIcon.textContent =
-            "☾";
+        theme === "dark"
 
-    } else {
+            ? "☾"
 
-        themeIcon.textContent =
-            "☀";
-    }
+            : "☀";
 }
-
 
 
 function loadTheme() {
@@ -1056,15 +1061,11 @@ function loadTheme() {
     }
 
 
-
-    /*
-        If user never selected a theme,
-        follow the operating system.
-    */
-
     const prefersDark =
         window.matchMedia(
+
             "(prefers-color-scheme: dark)"
+
         ).matches;
 
 
@@ -1079,48 +1080,9 @@ function loadTheme() {
 }
 
 
-
-themeToggle.addEventListener(
-    "click",
-    () => {
-
-        const currentTheme =
-            document
-                .documentElement
-                .dataset
-                .theme;
-
-
-
-        const newTheme =
-
-            currentTheme ===
-            "dark"
-
-                ? "light"
-
-                : "dark";
-
-
-
-        applyTheme(
-            newTheme
-        );
-
-
-        localStorage.setItem(
-            THEME_STORAGE_KEY,
-            newTheme
-        );
-    }
-);
-
-
-
 // ======================================================
-// REMEMBER KEY
+// SAVED KEY
 // ======================================================
-
 
 function loadSavedKey() {
 
@@ -1130,10 +1092,8 @@ function loadSavedKey() {
         ) === "true";
 
 
-
     rememberKey.checked =
         shouldRemember;
-
 
 
     if (
@@ -1146,16 +1106,15 @@ function loadSavedKey() {
                 "visible"
             );
 
+
         return;
     }
-
 
 
     const savedKey =
         localStorage.getItem(
             KEY_STORAGE_KEY
         );
-
 
 
     if (
@@ -1175,7 +1134,6 @@ function loadSavedKey() {
 }
 
 
-
 function saveRememberedKey() {
 
     if (
@@ -1186,12 +1144,10 @@ function saveRememberedKey() {
     }
 
 
-
     localStorage.setItem(
         REMEMBER_STORAGE_KEY,
         "true"
     );
-
 
 
     if (
@@ -1199,7 +1155,9 @@ function saveRememberedKey() {
     ) {
 
         localStorage.setItem(
+
             KEY_STORAGE_KEY,
+
             password.value
         );
 
@@ -1209,6 +1167,7 @@ function saveRememberedKey() {
             .add(
                 "visible"
             );
+
 
     } else {
 
@@ -1226,6 +1185,441 @@ function saveRememberedKey() {
 }
 
 
+// ======================================================
+// MOBILE MODE
+// ======================================================
+
+function setMobileMode(
+    mode
+) {
+
+    const encryptActive =
+        mode === "encrypt";
+
+
+    encryptPanel
+        .classList
+        .toggle(
+            "active-mobile",
+            encryptActive
+        );
+
+
+    decryptPanel
+        .classList
+        .toggle(
+            "active-mobile",
+            !encryptActive
+        );
+
+
+    mobileEncrypt
+        .classList
+        .toggle(
+            "active",
+            encryptActive
+        );
+
+
+    mobileDecrypt
+        .classList
+        .toggle(
+            "active",
+            !encryptActive
+        );
+}
+
+
+// ======================================================
+// COUNTERS
+// ======================================================
+
+function updateEncryptCounter() {
+
+    const count =
+        encryptInput
+            .value
+            .length;
+
+
+    encryptCounter.textContent =
+
+        `${count} ${
+            count === 1
+                ? "char"
+                : "chars"
+        }`;
+}
+
+
+function updateDecryptCounter() {
+
+    const count =
+        decryptInput
+            .value
+
+            .replace(
+                /\r/g,
+                ""
+            )
+
+            .split(
+                "\n"
+            )
+
+            .filter(
+                line =>
+                    line
+                        .trim()
+                        .length > 0
+            )
+
+            .length;
+
+
+    decryptCounter.textContent =
+
+        `${count} ${
+            count === 1
+                ? "message"
+                : "messages"
+        }`;
+}
+
+
+// ======================================================
+// CLIPBOARD
+// ======================================================
+
+async function writeClipboard(
+    text
+) {
+
+    if (
+        navigator.clipboard &&
+        window.isSecureContext
+    ) {
+
+        await navigator
+            .clipboard
+            .writeText(
+                text
+            );
+
+
+        return;
+    }
+
+
+    /*
+        Fallback.
+    */
+
+    const helper =
+        document.createElement(
+            "textarea"
+        );
+
+
+    helper.value =
+        text;
+
+
+    helper.setAttribute(
+        "readonly",
+        ""
+    );
+
+
+    helper.style.position =
+        "fixed";
+
+
+    helper.style.opacity =
+        "0";
+
+
+    document.body.appendChild(
+        helper
+    );
+
+
+    helper.select();
+
+
+    const copied =
+        document.execCommand(
+            "copy"
+        );
+
+
+    helper.remove();
+
+
+    if (
+        !copied
+    ) {
+
+        throw new Error(
+            "Could not copy to clipboard."
+        );
+    }
+}
+
+
+// ======================================================
+// COPY VISUAL FEEDBACK
+// ======================================================
+
+function showCopiedFeedback(
+    button,
+    outputElement
+) {
+
+    /*
+        Evita timers duplicados
+        se o usuário clicar várias vezes.
+    */
+
+    if (
+        button._copyTimer
+    ) {
+
+        window.clearTimeout(
+            button._copyTimer
+        );
+    }
+
+
+    button
+        .classList
+        .add(
+            "copied"
+        );
+
+
+    button.textContent =
+        "✓ COPIED";
+
+
+    /*
+        Reinicia a animação do textarea.
+    */
+
+    outputElement
+        .classList
+        .remove(
+            "copy-flash"
+        );
+
+
+    void outputElement.offsetWidth;
+
+
+    outputElement
+        .classList
+        .add(
+            "copy-flash"
+        );
+
+
+    button._copyTimer =
+        window.setTimeout(
+            () => {
+
+                button
+                    .classList
+                    .remove(
+                        "copied"
+                    );
+
+
+                button.textContent =
+                    "COPY";
+
+
+                outputElement
+                    .classList
+                    .remove(
+                        "copy-flash"
+                    );
+
+            },
+
+            1300
+        );
+}
+
+
+async function copyOutput(
+    button,
+    outputElement,
+    statusContainer,
+    statusText
+) {
+
+    if (
+        !outputElement.value
+    ) {
+
+        setPanelStatus(
+
+            statusContainer,
+
+            statusText,
+
+            "error",
+
+            "Nothing to copy."
+
+        );
+
+
+        return;
+    }
+
+
+    try {
+
+        await writeClipboard(
+            outputElement.value
+        );
+
+
+        showCopiedFeedback(
+
+            button,
+
+            outputElement
+
+        );
+
+
+        setPanelStatus(
+
+            statusContainer,
+
+            statusText,
+
+            "success",
+
+            "Copied to clipboard."
+
+        );
+
+
+    } catch (
+        error
+    ) {
+
+        setPanelStatus(
+
+            statusContainer,
+
+            statusText,
+
+            "error",
+
+            error.message
+
+        );
+    }
+}
+
+
+// ======================================================
+// EXTENSION DETECTION
+// ======================================================
+
+function detectExtensionMode() {
+
+    try {
+
+        const chromeExtension =
+
+            typeof chrome !== "undefined" &&
+
+            chrome.runtime &&
+
+            chrome.runtime.id;
+
+
+        const browserExtension =
+
+            typeof browser !== "undefined" &&
+
+            browser.runtime &&
+
+            browser.runtime.id;
+
+
+        if (
+            chromeExtension ||
+            browserExtension
+        ) {
+
+            document
+                .documentElement
+                .classList
+                .add(
+                    "extension-mode"
+                );
+        }
+
+
+    } catch {
+
+        /*
+            Normal webpage mode.
+        */
+
+    }
+}
+
+
+// ======================================================
+// THEME EVENT
+// ======================================================
+
+themeToggle.addEventListener(
+    "click",
+    () => {
+
+        const currentTheme =
+            document
+                .documentElement
+                .dataset
+                .theme;
+
+
+        const newTheme =
+
+            currentTheme ===
+            "dark"
+
+                ? "light"
+
+                : "dark";
+
+
+        applyTheme(
+            newTheme
+        );
+
+
+        localStorage.setItem(
+
+            THEME_STORAGE_KEY,
+
+            newTheme
+        );
+    }
+);
+
+
+// ======================================================
+// REMEMBER KEY EVENTS
+// ======================================================
 
 rememberKey.addEventListener(
     "change",
@@ -1236,7 +1630,9 @@ rememberKey.addEventListener(
         ) {
 
             localStorage.setItem(
+
                 REMEMBER_STORAGE_KEY,
+
                 "true"
             );
 
@@ -1244,8 +1640,29 @@ rememberKey.addEventListener(
             saveRememberedKey();
 
 
-            setCustomSuccessStatus(
-                "KEY REMEMBERING ENABLED"
+            setPanelStatus(
+
+                encryptStatusContainer,
+
+                encryptStatus,
+
+                "success",
+
+                "Key remembering enabled."
+
+            );
+
+
+            setPanelStatus(
+
+                decryptStatusContainer,
+
+                decryptStatus,
+
+                "success",
+
+                "Key remembering enabled."
+
             );
 
 
@@ -1268,28 +1685,39 @@ rememberKey.addEventListener(
                 );
 
 
-            setCustomSuccessStatus(
-                "SAVED KEY REMOVED"
+            setPanelStatus(
+
+                encryptStatusContainer,
+
+                encryptStatus,
+
+                "success",
+
+                "Saved key removed."
+
+            );
+
+
+            setPanelStatus(
+
+                decryptStatusContainer,
+
+                decryptStatus,
+
+                "success",
+
+                "Saved key removed."
+
             );
         }
     }
 );
 
 
-
 password.addEventListener(
     "input",
-    () => {
-
-        if (
-            rememberKey.checked
-        ) {
-
-            saveRememberedKey();
-        }
-    }
+    saveRememberedKey
 );
-
 
 
 forgetKey.addEventListener(
@@ -1321,8 +1749,29 @@ forgetKey.addEventListener(
             );
 
 
-        setCustomSuccessStatus(
-            "SAVED KEY FORGOTTEN"
+        setPanelStatus(
+
+            encryptStatusContainer,
+
+            encryptStatus,
+
+            "success",
+
+            "Saved key forgotten."
+
+        );
+
+
+        setPanelStatus(
+
+            decryptStatusContainer,
+
+            decryptStatus,
+
+            "success",
+
+            "Saved key forgotten."
+
         );
 
 
@@ -1331,79 +1780,47 @@ forgetKey.addEventListener(
 );
 
 
-
 // ======================================================
-// CHARACTER COUNTER
+// SHOW / HIDE KEY
 // ======================================================
-
-
-input.addEventListener(
-    "input",
-    () => {
-
-        const count =
-            input.value.length;
-
-
-        inputCounter.textContent =
-            `${count} ${
-                count === 1
-                    ? "char"
-                    : "chars"
-            }`;
-    }
-);
-
-
-
-// ======================================================
-// SHOW / HIDE PASSWORD
-// ======================================================
-
 
 togglePassword.addEventListener(
     "click",
     () => {
 
-        const isVisible =
+        const visible =
             password.type ===
             "text";
 
 
+        password.type =
 
-        if (
-            isVisible
-        ) {
+            visible
 
-            password.type =
-                "password";
+                ? "password"
 
-
-            togglePassword.textContent =
-                "◉";
+                : "text";
 
 
-            togglePassword.setAttribute(
-                "aria-label",
-                "Show password"
-            );
+        togglePassword.textContent =
+
+            visible
+
+                ? "◉"
+
+                : "◎";
 
 
-        } else {
+        togglePassword.setAttribute(
 
-            password.type =
-                "text";
+            "aria-label",
 
+            visible
 
-            togglePassword.textContent =
-                "◎";
+                ? "Show password"
 
-
-            togglePassword.setAttribute(
-                "aria-label",
-                "Hide password"
-            );
-        }
+                : "Hide password"
+        );
 
 
         password.focus();
@@ -1411,23 +1828,58 @@ togglePassword.addEventListener(
 );
 
 
+// ======================================================
+// COUNTER EVENTS
+// ======================================================
+
+encryptInput.addEventListener(
+    "input",
+    updateEncryptCounter
+);
+
+
+decryptInput.addEventListener(
+    "input",
+    updateDecryptCounter
+);
+
 
 // ======================================================
-// PROCESS
+// MOBILE EVENTS
 // ======================================================
 
+mobileEncrypt.addEventListener(
+    "click",
+    () => {
 
-processButton.addEventListener(
+        setMobileMode(
+            "encrypt"
+        );
+    }
+);
+
+
+mobileDecrypt.addEventListener(
+    "click",
+    () => {
+
+        setMobileMode(
+            "decrypt"
+        );
+    }
+);
+
+
+// ======================================================
+// ENCRYPT EVENT
+// ======================================================
+
+encryptButton.addEventListener(
     "click",
     async () => {
 
-        /*
-            Ignore repeated clicks while
-            crypto operation is running.
-        */
-
         if (
-            processButton
+            encryptButton
                 .classList
                 .contains(
                     "processing"
@@ -1438,155 +1890,77 @@ processButton.addEventListener(
         }
 
 
-
-        output.value =
+        encryptOutput.value =
             "";
 
 
+        setButtonProcessing(
 
-        setProcessingStatus();
+            encryptButton,
 
+            encryptButtonText,
 
+            encryptIcon,
 
-        processButton
-            .classList
-            .add(
-                "processing"
-            );
+            "ENCRYPTING..."
 
-
-
-        processIcon.textContent =
-            "◌";
+        );
 
 
+        setPanelStatus(
 
-        processText.textContent =
+            encryptStatusContainer,
 
-            currentMode ===
-            "encrypt"
+            encryptStatus,
 
-                ? "ENCRYPTING..."
+            "processing",
 
-                : "DECRYPTING...";
+            "Deriving key and encrypting."
 
+        );
 
 
         try {
 
-            let result;
+            encryptOutput.value =
+                await encryptMessage(
 
+                    encryptInput.value,
 
+                    password.value
+                );
 
-            if (
-                currentMode ===
-                "encrypt"
-            ) {
-
-                result =
-                    await encryptMessage(
-
-                        input.value,
-
-                        password.value
-                    );
-
-
-            } else {
-
-                result =
-                    await decryptMessage(
-
-                        input.value,
-
-                        password.value
-                    );
-            }
-
-
-
-            output.value =
-                result;
-
-
-
-            /*
-                If remember key is enabled,
-                make sure current value is saved.
-            */
 
             saveRememberedKey();
 
 
+            setPanelStatus(
 
-            setSuccessStatus();
+                encryptStatusContainer,
 
+                encryptStatus,
 
+                "success",
 
-            processButton
-                .classList
-                .remove(
-                    "processing"
-                );
+                "Encryption complete."
 
-
-
-            processButton
-                .classList
-                .add(
-                    "success"
-                );
+            );
 
 
+            finishButtonSuccess(
 
-            processIcon.textContent =
-                "✓";
+                encryptButton,
 
+                encryptButtonText,
 
+                encryptIcon,
 
-            processText.textContent =
+                "ENCRYPTED",
 
-                currentMode ===
-                "encrypt"
+                "ENCRYPT MESSAGE",
 
-                    ? "ENCRYPTED"
+                "◇"
 
-                    : "DECRYPTED";
-
-
-
-            setTimeout(
-                () => {
-
-                    processButton
-                        .classList
-                        .remove(
-                            "success"
-                        );
-
-
-                    processIcon.textContent =
-
-                        currentMode ===
-                        "encrypt"
-
-                            ? "◇"
-
-                            : "◆";
-
-
-                    processText.textContent =
-
-                        currentMode ===
-                        "encrypt"
-
-                            ? "ENCRYPT MESSAGE"
-
-                            : "DECRYPT MESSAGE";
-
-                },
-
-                800
             );
 
 
@@ -1594,250 +1968,437 @@ processButton.addEventListener(
             error
         ) {
 
-            processButton
-                .classList
-                .remove(
-                    "processing",
-                    "success"
-                );
+            resetButton(
+
+                encryptButton,
+
+                encryptButtonText,
+
+                encryptIcon,
+
+                "ENCRYPT MESSAGE",
+
+                "◇"
+
+            );
 
 
-            processIcon.textContent =
-                "×";
+            setPanelStatus(
 
+                encryptStatusContainer,
 
-            processText.textContent =
+                encryptStatus,
 
-                currentMode ===
-                "encrypt"
+                "error",
 
-                    ? "ENCRYPT MESSAGE"
-
-                    : "DECRYPT MESSAGE";
-
-
-            setErrorStatus(
                 error.message
+
             );
         }
     }
 );
 
 
-
 // ======================================================
-// COPY
+// BULK DECRYPT EVENT
 // ======================================================
 
-
-copyButton.addEventListener(
+decryptButton.addEventListener(
     "click",
     async () => {
 
         if (
-            !output.value
+            decryptButton
+                .classList
+                .contains(
+                    "processing"
+                )
         ) {
-
-            setErrorStatus(
-                "Nothing to copy."
-            );
 
             return;
         }
 
 
-
-        try {
-
-            await navigator
-                .clipboard
-                .writeText(
-                    output.value
-                );
-
-
-            setCustomSuccessStatus(
-                "COPIED TO CLIPBOARD"
-            );
-
-
-        } catch {
-
-            /*
-                Compatibility fallback.
-            */
-
-            output.focus();
-
-
-            output.select();
-
-
-
-            try {
-
-                document.execCommand(
-                    "copy"
-                );
-
-
-                setCustomSuccessStatus(
-                    "COPIED TO CLIPBOARD"
-                );
-
-
-            } catch {
-
-                setErrorStatus(
-                    "Could not copy to clipboard."
-                );
-            }
-        }
-    }
-);
-
-
-
-// ======================================================
-// CLEAR
-// ======================================================
-
-
-clearButton.addEventListener(
-    "click",
-    () => {
-
-        input.value =
+        decryptOutput.value =
             "";
 
 
-        output.value =
-            "";
+        setButtonProcessing(
 
+            decryptButton,
 
-        inputCounter.textContent =
-            "0 chars";
+            decryptButtonText,
 
+            decryptIcon,
 
+            "DECRYPTING..."
 
-        /*
-            If the user explicitly chose
-            to remember the key, Clear
-            keeps it available.
-
-            Otherwise it is erased from
-            the input field.
-        */
-
-        if (
-            !rememberKey.checked
-        ) {
-
-            password.value =
-                "";
-        }
-
-
-
-        password.type =
-            "password";
-
-
-        togglePassword.textContent =
-            "◉";
-
-
-        togglePassword.setAttribute(
-            "aria-label",
-            "Show password"
         );
 
 
+        setPanelStatus(
 
-        processButton
-            .classList
-            .remove(
-                "processing",
-                "success"
+            decryptStatusContainer,
+
+            decryptStatus,
+
+            "processing",
+
+            "Decrypting each non-empty line."
+
+        );
+
+
+        try {
+
+            const result =
+                await decryptLines(
+
+                    decryptInput.value,
+
+                    password.value
+                );
+
+
+            decryptOutput.value =
+                result.text;
+
+
+            saveRememberedKey();
+
+
+            /*
+                Todas funcionaram.
+            */
+
+            if (
+                result.errorCount === 0
+            ) {
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "success",
+
+                    `${result.successCount}/${result.total} messages decrypted.`
+
+                );
+
+
+            } else {
+
+                /*
+                    Algumas falharam,
+                    mas o restante continua sendo exibido.
+                */
+
+                setPanelStatus(
+
+                    decryptStatusContainer,
+
+                    decryptStatus,
+
+                    "warning",
+
+                    `${result.successCount}/${result.total} decrypted, ${result.errorCount} failed.`
+
+                );
+            }
+
+
+            finishButtonSuccess(
+
+                decryptButton,
+
+                decryptButtonText,
+
+                decryptIcon,
+
+                "DECRYPTED",
+
+                "DECRYPT MESSAGES",
+
+                "◆"
+
             );
 
 
+        } catch (
+            error
+        ) {
 
-        processIcon.textContent =
+            resetButton(
 
-            currentMode ===
-            "encrypt"
+                decryptButton,
 
-                ? "◇"
+                decryptButtonText,
 
-                : "◆";
+                decryptIcon,
 
+                "DECRYPT MESSAGES",
 
+                "◆"
 
-        processText.textContent =
-
-            currentMode ===
-            "encrypt"
-
-                ? "ENCRYPT MESSAGE"
-
-                : "DECRYPT MESSAGE";
+            );
 
 
+            setPanelStatus(
 
-        setReadyStatus();
+                decryptStatusContainer,
 
+                decryptStatus,
 
-        input.focus();
+                "error",
+
+                error.message
+
+            );
+        }
     }
 );
 
 
+// ======================================================
+// COPY EVENTS
+// ======================================================
+
+copyEncrypted.addEventListener(
+    "click",
+    () => {
+
+        copyOutput(
+
+            copyEncrypted,
+
+            encryptOutput,
+
+            encryptStatusContainer,
+
+            encryptStatus
+
+        );
+    }
+);
+
+
+copyDecrypted.addEventListener(
+    "click",
+    () => {
+
+        copyOutput(
+
+            copyDecrypted,
+
+            decryptOutput,
+
+            decryptStatusContainer,
+
+            decryptStatus
+
+        );
+    }
+);
+
 
 // ======================================================
-// KEYBOARD SHORTCUT
+// CLEAR ENCRYPT
 // ======================================================
 
+clearEncrypt.addEventListener(
+    "click",
+    () => {
+
+        encryptInput.value =
+            "";
+
+
+        encryptOutput.value =
+            "";
+
+
+        updateEncryptCounter();
+
+
+        resetButton(
+
+            encryptButton,
+
+            encryptButtonText,
+
+            encryptIcon,
+
+            "ENCRYPT MESSAGE",
+
+            "◇"
+
+        );
+
+
+        setPanelStatus(
+
+            encryptStatusContainer,
+
+            encryptStatus,
+
+            "ready",
+
+            "Ready"
+
+        );
+
+
+        encryptInput.focus();
+    }
+);
+
+
+// ======================================================
+// CLEAR DECRYPT
+// ======================================================
+
+clearDecrypt.addEventListener(
+    "click",
+    () => {
+
+        decryptInput.value =
+            "";
+
+
+        decryptOutput.value =
+            "";
+
+
+        updateDecryptCounter();
+
+
+        resetButton(
+
+            decryptButton,
+
+            decryptButtonText,
+
+            decryptIcon,
+
+            "DECRYPT MESSAGES",
+
+            "◆"
+
+        );
+
+
+        setPanelStatus(
+
+            decryptStatusContainer,
+
+            decryptStatus,
+
+            "ready",
+
+            "Ready"
+
+        );
+
+
+        decryptInput.focus();
+    }
+);
+
+
+// ======================================================
+// CTRL + ENTER
+// ======================================================
 
 document.addEventListener(
     "keydown",
     event => {
 
         if (
-            event.ctrlKey &&
-            event.key ===
-            "Enter"
+
+            !event.ctrlKey ||
+
+            event.key !== "Enter"
+
         ) {
 
-            event.preventDefault();
+            return;
+        }
 
 
-            processButton.click();
+        event.preventDefault();
+
+
+        /*
+            Se estiver escrevendo no decrypt,
+            executa decrypt.
+
+            Caso contrário executa encrypt.
+        */
+
+        if (
+            document.activeElement ===
+            decryptInput
+        ) {
+
+            decryptButton.click();
+
+
+        } else {
+
+            encryptButton.click();
         }
     }
 );
 
 
-
 // ======================================================
-// WEB CRYPTO CHECK
+// CRYPTO CHECK
 // ======================================================
-
 
 function checkCryptoAvailability() {
 
     if (
+
         !window.crypto ||
+
         !window.crypto.subtle
+
     ) {
 
-        setErrorStatus(
+        encryptButton.disabled =
+            true;
+
+
+        decryptButton.disabled =
+            true;
+
+
+        setPanelStatus(
+
+            encryptStatusContainer,
+
+            encryptStatus,
+
+            "error",
+
             "Web Crypto API is not available in this browser."
+
         );
 
 
-        processButton.disabled =
-            true;
+        setPanelStatus(
+
+            decryptStatusContainer,
+
+            decryptStatus,
+
+            "error",
+
+            "Web Crypto API is not available in this browser."
+
+        );
 
 
         return false;
@@ -1848,56 +2409,36 @@ function checkCryptoAvailability() {
 }
 
 
-
 // ======================================================
 // INITIALIZATION
 // ======================================================
 
-
 function initializeApp() {
 
-    /*
-        Theme first so the interface
-        does not visibly flash.
-    */
+    detectExtensionMode();
 
     loadTheme();
-
-
-
-    activateEncryptMode();
-
-
 
     loadSavedKey();
 
 
+    /*
+        Mobile / extension começa no Encrypt.
+        Isso não afeta desktop, onde os dois
+        permanecem visíveis.
+    */
 
-    inputCounter.textContent =
-        "0 chars";
+    setMobileMode(
+        "encrypt"
+    );
 
 
+    updateEncryptCounter();
+
+    updateDecryptCounter();
 
     checkCryptoAvailability();
-
-
-
-    console.log(
-        "%cCipherVault",
-        "color: #54ffc2; font-size: 18px; font-weight: bold;"
-    );
-
-
-    console.log(
-        "Cryptographic operations are performed locally using the Web Crypto API."
-    );
-
-
-    console.log(
-        "Warning: a remembered key is stored in browser localStorage and can be inspected by JavaScript running under the same origin."
-    );
 }
-
 
 
 initializeApp();

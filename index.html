@@ -24,10 +24,7 @@
 
 </head>
 
-
 <body>
-
-    <!-- Background -->
 
     <div class="background-grid"></div>
 
@@ -40,12 +37,10 @@
     ></div>
 
 
-    <!-- Application -->
-
     <main class="app">
 
 
-        <!-- Header -->
+        <!-- HEADER -->
 
         <header class="header">
 
@@ -79,11 +74,9 @@
                     aria-label="Toggle theme"
                     title="Toggle theme"
                 >
-
                     <span id="themeIcon">
                         ☾
                     </span>
-
                 </button>
 
 
@@ -102,106 +95,23 @@
         </header>
 
 
-
-        <!-- Main Panel -->
+        <!-- MAIN -->
 
         <section class="panel">
 
 
-            <!-- Mode -->
+            <!-- SHARED KEY -->
 
-            <div class="mode-section">
-
-                <div class="field-header">
-
-                    <label>
-                        MODE
-                    </label>
-
-                    <span class="hint">
-                        Select operation
-                    </span>
-
-                </div>
-
-
-                <div
-                    id="modeSwitch"
-                    class="mode-switch"
-                    role="group"
-                    aria-label="Cipher mode"
-                >
-
-                    <div
-                        class="mode-slider"
-                    ></div>
-
-
-                    <button
-                        id="encryptMode"
-                        class="mode-option active"
-                        type="button"
-                    >
-                        ENCRYPT
-                    </button>
-
-
-                    <button
-                        id="decryptMode"
-                        class="mode-option"
-                        type="button"
-                    >
-                        DECRYPT
-                    </button>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- Input -->
-
-            <div class="field">
-
-                <div class="field-header">
-
-                    <label for="input">
-                        INPUT
-                    </label>
-
-                    <span
-                        id="inputCounter"
-                        class="counter"
-                    >
-                        0 chars
-                    </span>
-
-                </div>
-
-
-                <textarea
-                    id="input"
-                    spellcheck="false"
-                    placeholder="Enter message to encrypt..."
-                ></textarea>
-
-            </div>
-
-
-
-            <!-- Secret Key -->
-
-            <div class="field">
+            <section class="key-section">
 
                 <div class="field-header">
 
                     <label for="password">
-                        SECRET KEY
+                        SHARED SECRET KEY
                     </label>
 
                     <span class="hint">
-                        PBKDF2 → AES-256-GCM
+                        PBKDF2-SHA256 → AES-256-GCM
                     </span>
 
                 </div>
@@ -229,9 +139,6 @@
 
                 </div>
 
-
-
-                <!-- Remember key -->
 
                 <div class="key-options">
 
@@ -265,116 +172,325 @@
 
 
                 <p class="storage-warning">
+
                     Stored locally in this browser.
                     Do not use this option on shared devices.
+
                 </p>
 
-            </div>
+            </section>
 
 
-
-            <!-- Process -->
-
-            <button
-                id="process"
-                class="process-button"
-                type="button"
-            >
-
-                <span class="button-scan"></span>
-
-                <span class="button-content">
-
-                    <span
-                        id="processIcon"
-                        class="process-icon"
-                    >
-                        ◇
-                    </span>
-
-                    <span id="processText">
-                        ENCRYPT MESSAGE
-                    </span>
-
-                </span>
-
-            </button>
-
-
-
-            <!-- Divider -->
-
-            <div class="divider">
-
-                <span></span>
-
-                OUTPUT
-
-                <span></span>
-
-            </div>
-
-
-
-            <!-- Output -->
-
-            <div class="field output-field">
-
-                <textarea
-                    id="output"
-                    spellcheck="false"
-                    readonly
-                    placeholder="Encrypted Base64 output will appear here..."
-                ></textarea>
-
-
-                <div class="output-actions">
-
-                    <button
-                        id="copy"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        COPY
-                    </button>
-
-
-                    <button
-                        id="clear"
-                        class="secondary-button danger"
-                        type="button"
-                    >
-                        CLEAR
-                    </button>
-
-                </div>
-
-            </div>
-
-
-
-            <!-- Status -->
+            <!-- MOBILE / EXTENSION SWITCH -->
 
             <div
-                id="statusContainer"
-                class="status-container"
+                id="mobileModeSwitch"
+                class="mobile-mode-switch"
+                role="group"
+                aria-label="Choose mobile workspace"
             >
 
-                <span
-                    class="status-indicator"
-                ></span>
+                <button
+                    id="mobileEncrypt"
+                    class="mobile-mode active"
+                    type="button"
+                >
+                    ENCRYPT
+                </button>
 
-                <span id="status">
-                    READY
-                </span>
+
+                <button
+                    id="mobileDecrypt"
+                    class="mobile-mode"
+                    type="button"
+                >
+                    DECRYPT
+                </button>
+
+            </div>
+
+
+            <!-- WORKSPACE -->
+
+            <div class="workspace">
+
+
+                <!-- ENCRYPT -->
+
+                <section
+                    id="encryptPanel"
+                    class="cipher-panel active-mobile"
+                >
+
+                    <div class="cipher-panel-title">
+
+                        <div>
+
+                            <span class="panel-symbol">
+                                ◇
+                            </span>
+
+                            <h2>
+                                ENCRYPT
+                            </h2>
+
+                        </div>
+
+
+                        <span
+                            id="encryptCounter"
+                            class="counter"
+                        >
+                            0 chars
+                        </span>
+
+                    </div>
+
+
+                    <div class="field">
+
+                        <label for="encryptInput">
+                            MESSAGE
+                        </label>
+
+
+                        <textarea
+                            id="encryptInput"
+                            spellcheck="false"
+                            placeholder="Enter message to encrypt..."
+                        ></textarea>
+
+                    </div>
+
+
+                    <button
+                        id="encryptButton"
+                        class="process-button"
+                        type="button"
+                    >
+
+                        <span class="button-content">
+
+                            <span
+                                id="encryptIcon"
+                                class="process-icon"
+                            >
+                                ◇
+                            </span>
+
+                            <span id="encryptButtonText">
+                                ENCRYPT MESSAGE
+                            </span>
+
+                        </span>
+
+                    </button>
+
+
+                    <div class="field output-field">
+
+                        <label for="encryptOutput">
+                            ENCRYPTED OUTPUT
+                        </label>
+
+
+                        <textarea
+                            id="encryptOutput"
+                            class="result-box"
+                            spellcheck="false"
+                            readonly
+                            placeholder="Encrypted Base64 will appear here..."
+                        ></textarea>
+
+
+                        <div class="output-actions">
+
+                            <button
+                                id="copyEncrypted"
+                                class="secondary-button copy-button"
+                                type="button"
+                            >
+                                COPY
+                            </button>
+
+
+                            <button
+                                id="clearEncrypt"
+                                class="secondary-button danger"
+                                type="button"
+                            >
+                                CLEAR
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="encryptStatusContainer"
+                        class="status-container"
+                        aria-live="polite"
+                    >
+
+                        <span
+                            class="status-indicator"
+                        ></span>
+
+                        <span id="encryptStatus">
+                            READY
+                        </span>
+
+                    </div>
+
+                </section>
+
+
+                <!-- DECRYPT -->
+
+                <section
+                    id="decryptPanel"
+                    class="cipher-panel"
+                >
+
+                    <div class="cipher-panel-title">
+
+                        <div>
+
+                            <span class="panel-symbol">
+                                ◆
+                            </span>
+
+                            <h2>
+                                DECRYPT
+                            </h2>
+
+                        </div>
+
+
+                        <span
+                            id="decryptCounter"
+                            class="counter"
+                        >
+                            0 messages
+                        </span>
+
+                    </div>
+
+
+                    <div class="field">
+
+                        <label for="decryptInput">
+                            ENCRYPTED MESSAGES
+                        </label>
+
+
+                        <textarea
+                            id="decryptInput"
+                            spellcheck="false"
+                            placeholder="Paste one encrypted Base64 message per line..."
+                        ></textarea>
+
+
+                        <p class="field-help">
+
+                            One encrypted message per line.
+                            All lines are decrypted independently
+                            using the shared key.
+
+                        </p>
+
+                    </div>
+
+
+                    <button
+                        id="decryptButton"
+                        class="process-button"
+                        type="button"
+                    >
+
+                        <span class="button-content">
+
+                            <span
+                                id="decryptIcon"
+                                class="process-icon"
+                            >
+                                ◆
+                            </span>
+
+                            <span id="decryptButtonText">
+                                DECRYPT MESSAGES
+                            </span>
+
+                        </span>
+
+                    </button>
+
+
+                    <div class="field output-field">
+
+                        <label for="decryptOutput">
+                            DECRYPTED OUTPUT
+                        </label>
+
+
+                        <textarea
+                            id="decryptOutput"
+                            class="result-box"
+                            spellcheck="false"
+                            readonly
+                            placeholder="Decrypted messages will appear here, one result per input line..."
+                        ></textarea>
+
+
+                        <div class="output-actions">
+
+                            <button
+                                id="copyDecrypted"
+                                class="secondary-button copy-button"
+                                type="button"
+                            >
+                                COPY
+                            </button>
+
+
+                            <button
+                                id="clearDecrypt"
+                                class="secondary-button danger"
+                                type="button"
+                            >
+                                CLEAR
+                            </button>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        id="decryptStatusContainer"
+                        class="status-container"
+                        aria-live="polite"
+                    >
+
+                        <span
+                            class="status-indicator"
+                        ></span>
+
+                        <span id="decryptStatus">
+                            READY
+                        </span>
+
+                    </div>
+
+                </section>
 
             </div>
 
         </section>
 
 
-
-        <!-- Footer -->
+        <!-- FOOTER -->
 
         <footer>
 
