@@ -1,111 +1,287 @@
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-const VERSION = 1;
-
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-
-const PBKDF2_ITERATIONS = 300000;
+// ======================================================
+// CIPHERVAULT
+// ======================================================
 
 
 // ======================================================
-// DOM ELEMENTS
+// CRYPTO CONFIGURATION
 // ======================================================
+
+
+const encoder =
+    new TextEncoder();
+
+
+const decoder =
+    new TextDecoder();
+
+
+const VERSION =
+    1;
+
+
+const SALT_LENGTH =
+    16;
+
+
+const IV_LENGTH =
+    12;
+
+
+const GCM_TAG_LENGTH =
+    128;
+
+
+const PBKDF2_ITERATIONS =
+    300000;
+
+
+
+// ======================================================
+// LOCAL STORAGE KEYS
+// ======================================================
+
+
+const THEME_STORAGE_KEY =
+    "ciphervault-theme";
+
+
+const KEY_STORAGE_KEY =
+    "ciphervault-saved-key";
+
+
+const REMEMBER_STORAGE_KEY =
+    "ciphervault-remember-key";
+
+
+
+// ======================================================
+// DOM
+// ======================================================
+
 
 const input =
-    document.getElementById("input");
+    document.getElementById(
+        "input"
+    );
+
 
 const password =
-    document.getElementById("password");
+    document.getElementById(
+        "password"
+    );
+
 
 const output =
-    document.getElementById("output");
+    document.getElementById(
+        "output"
+    );
+
 
 const status =
-    document.getElementById("status");
+    document.getElementById(
+        "status"
+    );
+
 
 const statusContainer =
-    document.getElementById("statusContainer");
+    document.getElementById(
+        "statusContainer"
+    );
+
 
 const processButton =
-    document.getElementById("process");
+    document.getElementById(
+        "process"
+    );
+
 
 const processText =
-    document.getElementById("processText");
+    document.getElementById(
+        "processText"
+    );
+
 
 const processIcon =
-    document.getElementById("processIcon");
+    document.getElementById(
+        "processIcon"
+    );
+
 
 const encryptModeButton =
-    document.getElementById("encryptMode");
+    document.getElementById(
+        "encryptMode"
+    );
+
 
 const decryptModeButton =
-    document.getElementById("decryptMode");
+    document.getElementById(
+        "decryptMode"
+    );
+
+
+const modeSwitch =
+    document.getElementById(
+        "modeSwitch"
+    );
+
 
 const copyButton =
-    document.getElementById("copy");
+    document.getElementById(
+        "copy"
+    );
+
 
 const clearButton =
-    document.getElementById("clear");
+    document.getElementById(
+        "clear"
+    );
+
 
 const togglePassword =
-    document.getElementById("togglePassword");
+    document.getElementById(
+        "togglePassword"
+    );
+
 
 const inputCounter =
-    document.getElementById("inputCounter");
+    document.getElementById(
+        "inputCounter"
+    );
+
+
+const themeToggle =
+    document.getElementById(
+        "themeToggle"
+    );
+
+
+const themeIcon =
+    document.getElementById(
+        "themeIcon"
+    );
+
+
+const rememberKey =
+    document.getElementById(
+        "rememberKey"
+    );
+
+
+const forgetKey =
+    document.getElementById(
+        "forgetKey"
+    );
+
 
 
 // ======================================================
-// APP STATE
+// APPLICATION STATE
 // ======================================================
 
-let currentMode = "encrypt";
+
+let currentMode =
+    "encrypt";
+
 
 
 // ======================================================
-// BASE64 FUNCTIONS
+// BASE64
 // ======================================================
 
-function bytesToBase64(bytes) {
 
-    let binary = "";
+function bytesToBase64(
+    bytes
+) {
 
-    for (const byte of bytes) {
-        binary += String.fromCharCode(byte);
+    let binary =
+        "";
+
+
+    for (
+        const byte
+        of bytes
+    ) {
+
+        binary +=
+            String.fromCharCode(
+                byte
+            );
     }
 
-    return btoa(binary);
+
+    return btoa(
+        binary
+    );
 }
 
 
-function base64ToBytes(base64) {
+
+function base64ToBytes(
+    base64
+) {
 
     const cleanedBase64 =
         base64
             .trim()
-            .replace(/\s+/g, "");
+            .replace(
+                /\s+/g,
+                ""
+            );
 
-    /*
-        Validação simples para impedir entradas
-        que claramente não sejam Base64.
-    */
 
     if (
-        cleanedBase64.length === 0 ||
-        cleanedBase64.length % 4 !== 0 ||
-        !/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedBase64)
+        cleanedBase64.length === 0
     ) {
+
         throw new Error(
             "Invalid Base64 payload."
         );
     }
 
+
+    /*
+        Base64 should normally have
+        a length divisible by 4.
+    */
+
+    if (
+        cleanedBase64.length % 4 !== 0
+    ) {
+
+        throw new Error(
+            "Invalid Base64 payload."
+        );
+    }
+
+
+    /*
+        Only allow standard Base64
+        characters.
+    */
+
+    if (
+        !/^[A-Za-z0-9+/]*={0,2}$/
+            .test(
+                cleanedBase64
+            )
+    ) {
+
+        throw new Error(
+            "Invalid Base64 payload."
+        );
+    }
+
+
     let binary;
+
 
     try {
 
-        binary = atob(cleanedBase64);
+        binary =
+            atob(
+                cleanedBase64
+            );
 
     } catch {
 
@@ -114,8 +290,12 @@ function base64ToBytes(base64) {
         );
     }
 
+
     const bytes =
-        new Uint8Array(binary.length);
+        new Uint8Array(
+            binary.length
+        );
+
 
     for (
         let i = 0;
@@ -124,16 +304,21 @@ function base64ToBytes(base64) {
     ) {
 
         bytes[i] =
-            binary.charCodeAt(i);
+            binary.charCodeAt(
+                i
+            );
     }
+
 
     return bytes;
 }
 
 
+
 // ======================================================
-// PASSWORD -> AES KEY
+// KEY DERIVATION
 // ======================================================
+
 
 async function deriveKey(
     passwordValue,
@@ -141,8 +326,8 @@ async function deriveKey(
 ) {
 
     /*
-        Primeiro importamos a senha como material
-        de chave para o PBKDF2.
+        Import the user's password
+        as PBKDF2 key material.
     */
 
     const passwordMaterial =
@@ -155,7 +340,8 @@ async function deriveKey(
             ),
 
             {
-                name: "PBKDF2"
+                name:
+                    "PBKDF2"
             },
 
             false,
@@ -167,32 +353,38 @@ async function deriveKey(
 
 
     /*
-        PBKDF2 transforma a senha fornecida
-        pelo usuário em uma chave AES-256.
+        Derive a 256-bit AES key
+        using PBKDF2-SHA256.
     */
 
     return crypto.subtle.deriveKey(
 
         {
-            name: "PBKDF2",
 
-            salt: salt,
+            name:
+                "PBKDF2",
+
+            salt:
+                salt,
 
             iterations:
                 PBKDF2_ITERATIONS,
 
             hash:
                 "SHA-256"
+
         },
 
         passwordMaterial,
 
         {
+
             name:
                 "AES-GCM",
 
             length:
                 256
+
         },
 
         false,
@@ -205,16 +397,20 @@ async function deriveKey(
 }
 
 
+
 // ======================================================
 // ENCRYPTION
 // ======================================================
+
 
 async function encryptMessage(
     message,
     passwordValue
 ) {
 
-    if (!message) {
+    if (
+        !message
+    ) {
 
         throw new Error(
             "Enter a message to encrypt."
@@ -222,7 +418,9 @@ async function encryptMessage(
     }
 
 
-    if (!passwordValue) {
+    if (
+        !passwordValue
+    ) {
 
         throw new Error(
             "Enter a secret key."
@@ -230,46 +428,36 @@ async function encryptMessage(
     }
 
 
-    /*
-        Salt aleatório.
 
-        Ele será utilizado pelo PBKDF2
-        para derivar a chave AES.
+    /*
+        Generate a new random salt
+        for every encryption.
     */
 
     const salt =
         crypto.getRandomValues(
+
             new Uint8Array(
                 SALT_LENGTH
             )
         );
 
 
-    /*
-        IV / Nonce do AES-GCM.
 
-        Um IV novo deve ser criado
-        para cada criptografia.
+    /*
+        AES-GCM recommends a
+        96-bit / 12-byte IV.
     */
 
     const iv =
         crypto.getRandomValues(
+
             new Uint8Array(
                 IV_LENGTH
             )
         );
 
 
-    /*
-        Derivamos a chave AES-256
-        utilizando:
-
-        password
-        +
-        salt
-        +
-        PBKDF2-SHA256
-    */
 
     const key =
         await deriveKey(
@@ -278,20 +466,17 @@ async function encryptMessage(
         );
 
 
+
     /*
-        Executa AES-256-GCM.
-
-        O Web Crypto retorna:
-
-        ciphertext
-        +
-        authentication tag
+        AES-GCM encrypts and also
+        generates an authentication tag.
     */
 
     const encryptedBuffer =
         await crypto.subtle.encrypt(
 
             {
+
                 name:
                     "AES-GCM",
 
@@ -299,7 +484,8 @@ async function encryptMessage(
                     iv,
 
                 tagLength:
-                    128
+                    GCM_TAG_LENGTH
+
             },
 
             key,
@@ -310,26 +496,30 @@ async function encryptMessage(
         );
 
 
+
     const ciphertext =
         new Uint8Array(
             encryptedBuffer
         );
 
 
-    /*
-        Nosso formato:
 
-        ┌─────────┐
-        │ Version │ 1 byte
-        ├─────────┤
-        │ Salt    │ 16 bytes
-        ├─────────┤
-        │ IV      │ 12 bytes
-        ├─────────┤
-        │ Cipher  │ variável
-        │ + Tag   │
-        └─────────┘
+    /*
+        CipherVault payload format:
+
+        [ VERSION ]
+        1 byte
+
+        [ SALT ]
+        16 bytes
+
+        [ IV ]
+        12 bytes
+
+        [ CIPHERTEXT + GCM TAG ]
+        variable
     */
+
 
     const payload =
         new Uint8Array(
@@ -344,7 +534,9 @@ async function encryptMessage(
         );
 
 
-    let offset = 0;
+    let offset =
+        0;
+
 
 
     // VERSION
@@ -352,7 +544,10 @@ async function encryptMessage(
     payload[offset] =
         VERSION;
 
-    offset += 1;
+
+    offset +=
+        1;
+
 
 
     // SALT
@@ -362,8 +557,10 @@ async function encryptMessage(
         offset
     );
 
+
     offset +=
         SALT_LENGTH;
+
 
 
     // IV
@@ -373,11 +570,13 @@ async function encryptMessage(
         offset
     );
 
+
     offset +=
         IV_LENGTH;
 
 
-    // CIPHERTEXT + GCM TAG
+
+    // CIPHERTEXT + TAG
 
     payload.set(
         ciphertext,
@@ -385,14 +584,6 @@ async function encryptMessage(
     );
 
 
-    /*
-        Transformamos todo o payload
-        binário em Base64 para facilitar:
-
-        - copiar
-        - enviar
-        - armazenar
-    */
 
     return bytesToBase64(
         payload
@@ -400,16 +591,20 @@ async function encryptMessage(
 }
 
 
+
 // ======================================================
 // DECRYPTION
 // ======================================================
+
 
 async function decryptMessage(
     encryptedBase64,
     passwordValue
 ) {
 
-    if (!encryptedBase64) {
+    if (
+        !encryptedBase64
+    ) {
 
         throw new Error(
             "Enter an encrypted Base64 message."
@@ -417,7 +612,9 @@ async function decryptMessage(
     }
 
 
-    if (!passwordValue) {
+    if (
+        !passwordValue
+    ) {
 
         throw new Error(
             "Enter the secret key."
@@ -425,10 +622,6 @@ async function decryptMessage(
     }
 
 
-    /*
-        Primeiro transformamos Base64
-        novamente em bytes.
-    */
 
     const payload =
         base64ToBytes(
@@ -436,22 +629,28 @@ async function decryptMessage(
         );
 
 
+
     /*
-        Tamanho mínimo esperado:
+        Minimum:
 
         version = 1
-        salt    = 16
-        IV      = 12
-        tag     = 16
+        salt = 16
+        iv = 12
+        GCM tag = 16
 
-        Total mínimo = 45 bytes
+        45 bytes minimum.
     */
 
     const minimumPayloadLength =
+
         1 +
+
         SALT_LENGTH +
+
         IV_LENGTH +
+
         16;
+
 
 
     if (
@@ -465,17 +664,21 @@ async function decryptMessage(
     }
 
 
-    let offset = 0;
+
+    let offset =
+        0;
 
 
-    // ==================================================
+
     // VERSION
-    // ==================================================
 
     const version =
         payload[offset];
 
-    offset += 1;
+
+    offset +=
+        1;
+
 
 
     if (
@@ -488,9 +691,8 @@ async function decryptMessage(
     }
 
 
-    // ==================================================
+
     // SALT
-    // ==================================================
 
     const salt =
         payload.slice(
@@ -501,13 +703,13 @@ async function decryptMessage(
             SALT_LENGTH
         );
 
+
     offset +=
         SALT_LENGTH;
 
 
-    // ==================================================
+
     // IV
-    // ==================================================
 
     const iv =
         payload.slice(
@@ -518,13 +720,13 @@ async function decryptMessage(
             IV_LENGTH
         );
 
+
     offset +=
         IV_LENGTH;
 
 
-    // ==================================================
+
     // CIPHERTEXT + TAG
-    // ==================================================
 
     const ciphertext =
         payload.slice(
@@ -532,14 +734,6 @@ async function decryptMessage(
         );
 
 
-    /*
-        Utilizamos a senha fornecida
-        pelo usuário + o mesmo salt
-        armazenado dentro do payload.
-
-        Isso recria exatamente
-        a mesma chave AES.
-    */
 
     const key =
         await deriveKey(
@@ -548,26 +742,24 @@ async function decryptMessage(
         );
 
 
+
     try {
 
         /*
-            O AES-GCM também valida
-            automaticamente a integridade.
+            AES-GCM authentication means
+            this will fail if:
 
-            Se:
-
-            - senha estiver errada
-            - mensagem for alterada
-            - tag for inválida
-            - IV estiver errado
-
-            decrypt() falhará.
+            - password is wrong
+            - ciphertext changed
+            - IV changed
+            - tag changed
         */
 
         const decryptedBuffer =
             await crypto.subtle.decrypt(
 
                 {
+
                     name:
                         "AES-GCM",
 
@@ -575,7 +767,8 @@ async function decryptMessage(
                         iv,
 
                     tagLength:
-                        128
+                        GCM_TAG_LENGTH
+
                 },
 
                 key,
@@ -584,9 +777,11 @@ async function decryptMessage(
             );
 
 
+
         return decoder.decode(
             decryptedBuffer
         );
+
 
     } catch {
 
@@ -597,18 +792,22 @@ async function decryptMessage(
 }
 
 
+
 // ======================================================
-// UI HELPERS
+// STATUS FUNCTIONS
 // ======================================================
+
 
 function setReadyStatus() {
 
     statusContainer.className =
         "status-container";
 
+
     status.textContent =
         "READY";
 }
+
 
 
 function setProcessingStatus() {
@@ -616,8 +815,11 @@ function setProcessingStatus() {
     statusContainer.className =
         "status-container processing";
 
+
     status.textContent =
-        currentMode === "encrypt"
+
+        currentMode ===
+        "encrypt"
 
             ? "DERIVING KEY AND ENCRYPTING"
 
@@ -625,18 +827,23 @@ function setProcessingStatus() {
 }
 
 
+
 function setSuccessStatus() {
 
     statusContainer.className =
         "status-container success";
 
+
     status.textContent =
-        currentMode === "encrypt"
+
+        currentMode ===
+        "encrypt"
 
             ? "ENCRYPTION COMPLETE"
 
             : "DECRYPTION COMPLETE";
 }
+
 
 
 function setErrorStatus(
@@ -646,14 +853,31 @@ function setErrorStatus(
     statusContainer.className =
         "status-container error";
 
+
     status.textContent =
         message.toUpperCase();
 }
 
 
+
+function setCustomSuccessStatus(
+    message
+) {
+
+    statusContainer.className =
+        "status-container success";
+
+
+    status.textContent =
+        message.toUpperCase();
+}
+
+
+
 // ======================================================
-// MODE: ENCRYPT
+// MODE
 // ======================================================
+
 
 function activateEncryptMode() {
 
@@ -672,6 +896,13 @@ function activateEncryptMode() {
         .classList
         .remove(
             "active"
+        );
+
+
+    modeSwitch
+        .classList
+        .remove(
+            "decrypt"
         );
 
 
@@ -699,9 +930,6 @@ function activateEncryptMode() {
 }
 
 
-// ======================================================
-// MODE: DECRYPT
-// ======================================================
 
 function activateDecryptMode() {
 
@@ -720,6 +948,13 @@ function activateDecryptMode() {
         .classList
         .remove(
             "active"
+        );
+
+
+    modeSwitch
+        .classList
+        .add(
+            "decrypt"
         );
 
 
@@ -747,43 +982,372 @@ function activateDecryptMode() {
 }
 
 
+
 // ======================================================
-// MODE BUTTON EVENTS
+// MODE EVENTS
 // ======================================================
+
 
 encryptModeButton.addEventListener(
     "click",
-    () => {
-
-        activateEncryptMode();
-    }
+    activateEncryptMode
 );
+
 
 
 decryptModeButton.addEventListener(
     "click",
+    activateDecryptMode
+);
+
+
+
+// ======================================================
+// THEME
+// ======================================================
+
+
+function applyTheme(
+    theme
+) {
+
+    document
+        .documentElement
+        .dataset
+        .theme =
+            theme;
+
+
+    if (
+        theme ===
+        "dark"
+    ) {
+
+        themeIcon.textContent =
+            "☾";
+
+    } else {
+
+        themeIcon.textContent =
+            "☀";
+    }
+}
+
+
+
+function loadTheme() {
+
+    const savedTheme =
+        localStorage.getItem(
+            THEME_STORAGE_KEY
+        );
+
+
+    if (
+        savedTheme === "dark" ||
+        savedTheme === "light"
+    ) {
+
+        applyTheme(
+            savedTheme
+        );
+
+        return;
+    }
+
+
+
+    /*
+        If user never selected a theme,
+        follow the operating system.
+    */
+
+    const prefersDark =
+        window.matchMedia(
+            "(prefers-color-scheme: dark)"
+        ).matches;
+
+
+    applyTheme(
+
+        prefersDark
+
+            ? "dark"
+
+            : "light"
+    );
+}
+
+
+
+themeToggle.addEventListener(
+    "click",
     () => {
 
-        activateDecryptMode();
+        const currentTheme =
+            document
+                .documentElement
+                .dataset
+                .theme;
+
+
+
+        const newTheme =
+
+            currentTheme ===
+            "dark"
+
+                ? "light"
+
+                : "dark";
+
+
+
+        applyTheme(
+            newTheme
+        );
+
+
+        localStorage.setItem(
+            THEME_STORAGE_KEY,
+            newTheme
+        );
     }
 );
+
+
+
+// ======================================================
+// REMEMBER KEY
+// ======================================================
+
+
+function loadSavedKey() {
+
+    const shouldRemember =
+        localStorage.getItem(
+            REMEMBER_STORAGE_KEY
+        ) === "true";
+
+
+
+    rememberKey.checked =
+        shouldRemember;
+
+
+
+    if (
+        !shouldRemember
+    ) {
+
+        forgetKey
+            .classList
+            .remove(
+                "visible"
+            );
+
+        return;
+    }
+
+
+
+    const savedKey =
+        localStorage.getItem(
+            KEY_STORAGE_KEY
+        );
+
+
+
+    if (
+        savedKey
+    ) {
+
+        password.value =
+            savedKey;
+
+
+        forgetKey
+            .classList
+            .add(
+                "visible"
+            );
+    }
+}
+
+
+
+function saveRememberedKey() {
+
+    if (
+        !rememberKey.checked
+    ) {
+
+        return;
+    }
+
+
+
+    localStorage.setItem(
+        REMEMBER_STORAGE_KEY,
+        "true"
+    );
+
+
+
+    if (
+        password.value
+    ) {
+
+        localStorage.setItem(
+            KEY_STORAGE_KEY,
+            password.value
+        );
+
+
+        forgetKey
+            .classList
+            .add(
+                "visible"
+            );
+
+    } else {
+
+        localStorage.removeItem(
+            KEY_STORAGE_KEY
+        );
+
+
+        forgetKey
+            .classList
+            .remove(
+                "visible"
+            );
+    }
+}
+
+
+
+rememberKey.addEventListener(
+    "change",
+    () => {
+
+        if (
+            rememberKey.checked
+        ) {
+
+            localStorage.setItem(
+                REMEMBER_STORAGE_KEY,
+                "true"
+            );
+
+
+            saveRememberedKey();
+
+
+            setCustomSuccessStatus(
+                "KEY REMEMBERING ENABLED"
+            );
+
+
+        } else {
+
+            localStorage.removeItem(
+                REMEMBER_STORAGE_KEY
+            );
+
+
+            localStorage.removeItem(
+                KEY_STORAGE_KEY
+            );
+
+
+            forgetKey
+                .classList
+                .remove(
+                    "visible"
+                );
+
+
+            setCustomSuccessStatus(
+                "SAVED KEY REMOVED"
+            );
+        }
+    }
+);
+
+
+
+password.addEventListener(
+    "input",
+    () => {
+
+        if (
+            rememberKey.checked
+        ) {
+
+            saveRememberedKey();
+        }
+    }
+);
+
+
+
+forgetKey.addEventListener(
+    "click",
+    () => {
+
+        localStorage.removeItem(
+            KEY_STORAGE_KEY
+        );
+
+
+        localStorage.removeItem(
+            REMEMBER_STORAGE_KEY
+        );
+
+
+        password.value =
+            "";
+
+
+        rememberKey.checked =
+            false;
+
+
+        forgetKey
+            .classList
+            .remove(
+                "visible"
+            );
+
+
+        setCustomSuccessStatus(
+            "SAVED KEY FORGOTTEN"
+        );
+
+
+        password.focus();
+    }
+);
+
 
 
 // ======================================================
 // CHARACTER COUNTER
 // ======================================================
 
+
 input.addEventListener(
     "input",
     () => {
 
-        const characterCount =
+        const count =
             input.value.length;
 
 
         inputCounter.textContent =
-            `${characterCount} ${
-                characterCount === 1
+            `${count} ${
+                count === 1
                     ? "char"
                     : "chars"
             }`;
@@ -791,334 +1355,25 @@ input.addEventListener(
 );
 
 
-// ======================================================
-// PROCESS BUTTON
-// ======================================================
-
-processButton.addEventListener(
-    "click",
-    async () => {
-
-        /*
-            Impede clique repetido enquanto
-            uma operação estiver rodando.
-        */
-
-        if (
-            processButton
-                .classList
-                .contains(
-                    "processing"
-                )
-        ) {
-            return;
-        }
-
-
-        output.value =
-            "";
-
-
-        setProcessingStatus();
-
-
-        processButton
-            .classList
-            .add(
-                "processing"
-            );
-
-
-        processIcon.textContent =
-            "◌";
-
-
-        processText.textContent =
-            currentMode === "encrypt"
-
-                ? "ENCRYPTING..."
-
-                : "DECRYPTING...";
-
-
-        try {
-
-            let result;
-
-
-            if (
-                currentMode ===
-                "encrypt"
-            ) {
-
-                result =
-                    await encryptMessage(
-
-                        input.value,
-
-                        password.value
-                    );
-
-            } else {
-
-                result =
-                    await decryptMessage(
-
-                        input.value,
-
-                        password.value
-                    );
-            }
-
-
-            output.value =
-                result;
-
-
-            setSuccessStatus();
-
-
-            processButton
-                .classList
-                .remove(
-                    "processing"
-                );
-
-
-            processButton
-                .classList
-                .add(
-                    "success"
-                );
-
-
-            processIcon.textContent =
-                "✓";
-
-
-            processText.textContent =
-                currentMode === "encrypt"
-
-                    ? "ENCRYPTED"
-
-                    : "DECRYPTED";
-
-
-            /*
-                Depois da animação,
-                retorna o botão
-                para o estado normal.
-            */
-
-            setTimeout(
-                () => {
-
-                    processButton
-                        .classList
-                        .remove(
-                            "success"
-                        );
-
-
-                    processIcon.textContent =
-                        currentMode === "encrypt"
-
-                            ? "◇"
-
-                            : "◆";
-
-
-                    processText.textContent =
-                        currentMode === "encrypt"
-
-                            ? "ENCRYPT MESSAGE"
-
-                            : "DECRYPT MESSAGE";
-
-                },
-
-                800
-            );
-
-        } catch (error) {
-
-            processButton
-                .classList
-                .remove(
-                    "processing"
-                );
-
-
-            processButton
-                .classList
-                .remove(
-                    "success"
-                );
-
-
-            processIcon.textContent =
-                "×";
-
-
-            processText.textContent =
-                currentMode === "encrypt"
-
-                    ? "ENCRYPT MESSAGE"
-
-                    : "DECRYPT MESSAGE";
-
-
-            setErrorStatus(
-                error.message
-            );
-        }
-    }
-);
-
-
-// ======================================================
-// COPY OUTPUT
-// ======================================================
-
-copyButton.addEventListener(
-    "click",
-    async () => {
-
-        if (!output.value) {
-
-            setErrorStatus(
-                "Nothing to copy."
-            );
-
-            return;
-        }
-
-
-        try {
-
-            await navigator
-                .clipboard
-                .writeText(
-                    output.value
-                );
-
-
-            statusContainer.className =
-                "status-container success";
-
-
-            status.textContent =
-                "COPIED TO CLIPBOARD";
-
-
-        } catch {
-
-            /*
-                Fallback para navegadores
-                onde Clipboard API falhe.
-            */
-
-            output.select();
-
-
-            document.execCommand(
-                "copy"
-            );
-
-
-            statusContainer.className =
-                "status-container success";
-
-
-            status.textContent =
-                "COPIED TO CLIPBOARD";
-        }
-    }
-);
-
-
-// ======================================================
-// CLEAR EVERYTHING
-// ======================================================
-
-clearButton.addEventListener(
-    "click",
-    () => {
-
-        input.value =
-            "";
-
-        password.value =
-            "";
-
-        output.value =
-            "";
-
-
-        inputCounter.textContent =
-            "0 chars";
-
-
-        password.type =
-            "password";
-
-
-        togglePassword.textContent =
-            "◉";
-
-
-        togglePassword.setAttribute(
-            "aria-label",
-            "Show password"
-        );
-
-
-        processButton
-            .classList
-            .remove(
-                "processing",
-                "success"
-            );
-
-
-        processIcon.textContent =
-            currentMode === "encrypt"
-
-                ? "◇"
-
-                : "◆";
-
-
-        processText.textContent =
-            currentMode === "encrypt"
-
-                ? "ENCRYPT MESSAGE"
-
-                : "DECRYPT MESSAGE";
-
-
-        setReadyStatus();
-
-
-        input.focus();
-    }
-);
-
 
 // ======================================================
 // SHOW / HIDE PASSWORD
 // ======================================================
 
+
 togglePassword.addEventListener(
     "click",
     () => {
 
-        const passwordVisible =
+        const isVisible =
             password.type ===
             "text";
 
 
-        if (passwordVisible) {
+
+        if (
+            isVisible
+        ) {
 
             password.type =
                 "password";
@@ -1132,6 +1387,7 @@ togglePassword.addEventListener(
                 "aria-label",
                 "Show password"
             );
+
 
         } else {
 
@@ -1155,10 +1411,393 @@ togglePassword.addEventListener(
 );
 
 
+
+// ======================================================
+// PROCESS
+// ======================================================
+
+
+processButton.addEventListener(
+    "click",
+    async () => {
+
+        /*
+            Ignore repeated clicks while
+            crypto operation is running.
+        */
+
+        if (
+            processButton
+                .classList
+                .contains(
+                    "processing"
+                )
+        ) {
+
+            return;
+        }
+
+
+
+        output.value =
+            "";
+
+
+
+        setProcessingStatus();
+
+
+
+        processButton
+            .classList
+            .add(
+                "processing"
+            );
+
+
+
+        processIcon.textContent =
+            "◌";
+
+
+
+        processText.textContent =
+
+            currentMode ===
+            "encrypt"
+
+                ? "ENCRYPTING..."
+
+                : "DECRYPTING...";
+
+
+
+        try {
+
+            let result;
+
+
+
+            if (
+                currentMode ===
+                "encrypt"
+            ) {
+
+                result =
+                    await encryptMessage(
+
+                        input.value,
+
+                        password.value
+                    );
+
+
+            } else {
+
+                result =
+                    await decryptMessage(
+
+                        input.value,
+
+                        password.value
+                    );
+            }
+
+
+
+            output.value =
+                result;
+
+
+
+            /*
+                If remember key is enabled,
+                make sure current value is saved.
+            */
+
+            saveRememberedKey();
+
+
+
+            setSuccessStatus();
+
+
+
+            processButton
+                .classList
+                .remove(
+                    "processing"
+                );
+
+
+
+            processButton
+                .classList
+                .add(
+                    "success"
+                );
+
+
+
+            processIcon.textContent =
+                "✓";
+
+
+
+            processText.textContent =
+
+                currentMode ===
+                "encrypt"
+
+                    ? "ENCRYPTED"
+
+                    : "DECRYPTED";
+
+
+
+            setTimeout(
+                () => {
+
+                    processButton
+                        .classList
+                        .remove(
+                            "success"
+                        );
+
+
+                    processIcon.textContent =
+
+                        currentMode ===
+                        "encrypt"
+
+                            ? "◇"
+
+                            : "◆";
+
+
+                    processText.textContent =
+
+                        currentMode ===
+                        "encrypt"
+
+                            ? "ENCRYPT MESSAGE"
+
+                            : "DECRYPT MESSAGE";
+
+                },
+
+                800
+            );
+
+
+        } catch (
+            error
+        ) {
+
+            processButton
+                .classList
+                .remove(
+                    "processing",
+                    "success"
+                );
+
+
+            processIcon.textContent =
+                "×";
+
+
+            processText.textContent =
+
+                currentMode ===
+                "encrypt"
+
+                    ? "ENCRYPT MESSAGE"
+
+                    : "DECRYPT MESSAGE";
+
+
+            setErrorStatus(
+                error.message
+            );
+        }
+    }
+);
+
+
+
+// ======================================================
+// COPY
+// ======================================================
+
+
+copyButton.addEventListener(
+    "click",
+    async () => {
+
+        if (
+            !output.value
+        ) {
+
+            setErrorStatus(
+                "Nothing to copy."
+            );
+
+            return;
+        }
+
+
+
+        try {
+
+            await navigator
+                .clipboard
+                .writeText(
+                    output.value
+                );
+
+
+            setCustomSuccessStatus(
+                "COPIED TO CLIPBOARD"
+            );
+
+
+        } catch {
+
+            /*
+                Compatibility fallback.
+            */
+
+            output.focus();
+
+
+            output.select();
+
+
+
+            try {
+
+                document.execCommand(
+                    "copy"
+                );
+
+
+                setCustomSuccessStatus(
+                    "COPIED TO CLIPBOARD"
+                );
+
+
+            } catch {
+
+                setErrorStatus(
+                    "Could not copy to clipboard."
+                );
+            }
+        }
+    }
+);
+
+
+
+// ======================================================
+// CLEAR
+// ======================================================
+
+
+clearButton.addEventListener(
+    "click",
+    () => {
+
+        input.value =
+            "";
+
+
+        output.value =
+            "";
+
+
+        inputCounter.textContent =
+            "0 chars";
+
+
+
+        /*
+            If the user explicitly chose
+            to remember the key, Clear
+            keeps it available.
+
+            Otherwise it is erased from
+            the input field.
+        */
+
+        if (
+            !rememberKey.checked
+        ) {
+
+            password.value =
+                "";
+        }
+
+
+
+        password.type =
+            "password";
+
+
+        togglePassword.textContent =
+            "◉";
+
+
+        togglePassword.setAttribute(
+            "aria-label",
+            "Show password"
+        );
+
+
+
+        processButton
+            .classList
+            .remove(
+                "processing",
+                "success"
+            );
+
+
+
+        processIcon.textContent =
+
+            currentMode ===
+            "encrypt"
+
+                ? "◇"
+
+                : "◆";
+
+
+
+        processText.textContent =
+
+            currentMode ===
+            "encrypt"
+
+                ? "ENCRYPT MESSAGE"
+
+                : "DECRYPT MESSAGE";
+
+
+
+        setReadyStatus();
+
+
+        input.focus();
+    }
+);
+
+
+
 // ======================================================
 // KEYBOARD SHORTCUT
-// CTRL + ENTER
 // ======================================================
+
 
 document.addEventListener(
     "keydown",
@@ -1166,10 +1805,12 @@ document.addEventListener(
 
         if (
             event.ctrlKey &&
-            event.key === "Enter"
+            event.key ===
+            "Enter"
         ) {
 
             event.preventDefault();
+
 
             processButton.click();
         }
@@ -1177,9 +1818,11 @@ document.addEventListener(
 );
 
 
+
 // ======================================================
-// SECURITY / ENVIRONMENT CHECK
+// WEB CRYPTO CHECK
 // ======================================================
+
 
 function checkCryptoAvailability() {
 
@@ -1205,20 +1848,38 @@ function checkCryptoAvailability() {
 }
 
 
+
 // ======================================================
 // INITIALIZATION
 // ======================================================
 
+
 function initializeApp() {
 
-    checkCryptoAvailability();
+    /*
+        Theme first so the interface
+        does not visibly flash.
+    */
+
+    loadTheme();
+
 
 
     activateEncryptMode();
 
 
+
+    loadSavedKey();
+
+
+
     inputCounter.textContent =
         "0 chars";
+
+
+
+    checkCryptoAvailability();
+
 
 
     console.log(
@@ -1230,7 +1891,13 @@ function initializeApp() {
     console.log(
         "Cryptographic operations are performed locally using the Web Crypto API."
     );
+
+
+    console.log(
+        "Warning: a remembered key is stored in browser localStorage and can be inspected by JavaScript running under the same origin."
+    );
 }
+
 
 
 initializeApp();
