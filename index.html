@@ -1,832 +1,349 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <meta
-        name="description"
-        content="Client-side AES-256-GCM message encryption tool."
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <meta name="description" content="CipherVault — local AES-256-GCM message encryption.">
 
     <title>CipherVault</title>
 
+    <link rel="icon" type="image/png" href="icons/icon32.png">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
+    <main class="app-shell">
+        <header class="app-header">
+            <div class="brand-area">
+                <img
+                    class="brand-icon"
+                    src="icons/icon64.png"
+                    alt="CipherVault"
+                >
 
-    <div class="background-grid"></div>
-    <div class="background-glow glow-one"></div>
-    <div class="background-glow glow-two"></div>
-
-
-    <main class="app">
-
-        <!-- =================================================
-             HEADER
-             ================================================= -->
-
-        <header class="header">
-
-            <div class="brand">
-
-                <div class="logo">
-                    ◇
+                <div class="brand-copy">
+                    <h1><span>Cipher</span><strong>Vault</strong></h1>
+                    <span class="brand-subtitle">LOCAL ENCRYPTION</span>
                 </div>
-
-                <div>
-                    <h1>CipherVault</h1>
-
-                    <p>
-                        CLIENT-SIDE MESSAGE ENCRYPTION
-                    </p>
-                </div>
-
             </div>
 
-
             <div class="header-actions">
+                <div class="local-only-badge" title="Encryption runs locally in this browser">
+                    <span class="local-dot"></span>
+                    <span>LOCAL ONLY</span>
+                </div>
 
                 <button
                     id="themeToggle"
-                    class="theme-toggle"
+                    class="icon-button"
                     type="button"
-                    aria-label="Toggle theme"
-                    title="Toggle theme"
+                    aria-label="Toggle light/dark mode"
+                    title="Switch theme"
                 >
-                    <span id="themeIcon">☾</span>
+                    <span id="themeIcon" aria-hidden="true">☀</span>
                 </button>
-
-
-                <div class="security-status">
-                    <span class="status-dot"></span>
-                    LOCAL ENCRYPTION
-                </div>
-
             </div>
-
         </header>
 
-
-        <!-- =================================================
-             MAIN
-             ================================================= -->
-
-        <section class="main-panel">
-
-
-            <!-- =============================================
-                 PROFILE
-                 ============================================= -->
-
-            <section class="profile-section">
-
-                <div class="field-header">
-
-                    <label for="profileSelect">
-                        PROFILE
-                    </label>
-
-                    <span
-                        id="profileStorageHint"
-                        class="hint"
-                    >
-                        LOCAL PROFILE
-                    </span>
-
-                </div>
-
-
-                <div class="profile-toolbar">
-
-                    <select
-                        id="profileSelect"
-                        class="profile-select"
-                    >
-                        <option value="">
-                            Temporary Session
-                        </option>
-                    </select>
-
-
-                    <button
-                        id="addProfile"
-                        class="profile-action-button"
-                        type="button"
-                    >
-                        + NEW
-                    </button>
-
-
-                    <button
-                        id="manageProfiles"
-                        class="profile-action-button"
-                        type="button"
-                    >
-                        MANAGE
-                    </button>
-
-                </div>
-
-
-                <p
-                    id="profileNotice"
-                    class="profile-notice"
-                >
-                    Temporary sessions are not stored.
-                </p>
-
-            </section>
-
-
-            <!-- =============================================
-                 SECRET KEY
-                 ============================================= -->
-
-            <section class="key-section">
-
-                <div class="field-header">
-
-                    <label for="password">
-                        SHARED SECRET KEY
-                    </label>
-
-                    <span
-                        id="keySourceHint"
-                        class="hint"
-                    >
-                        TEMPORARY KEY
-                    </span>
-
-                </div>
-
-
-                <div class="password-wrapper">
-
-                    <input
-                        id="password"
-                        type="password"
-                        placeholder="Enter secret key"
-                        autocomplete="new-password"
-                    >
-
-
-                    <button
-                        id="togglePassword"
-                        class="icon-button"
-                        type="button"
-                        aria-label="Show password"
-                        title="Show / hide key"
-                    >
-                        ◉
-                    </button>
-
-                </div>
-
-
-                <p class="storage-warning">
-                    Saved profile secrets are encrypted locally in IndexedDB.
-                    Editing this field does not modify the saved profile.
-                </p>
-
-            </section>
-
-
-            <!-- =============================================
-                 MOBILE / EXTENSION MODE
-                 ============================================= -->
-
-            <div
-                id="mobileModeSwitch"
-                class="mobile-mode-switch"
-                role="group"
-                aria-label="Choose workspace"
+        <section id="credentialsSection" class="credentials-section" aria-label="Profile and secret key">
+            <button
+                id="credentialsSummary"
+                class="credentials-summary"
+                type="button"
+                aria-expanded="false"
+                hidden
             >
+                <span class="summary-profile">
+                    <span class="summary-user-icon" aria-hidden="true">◯</span>
+                    <span id="summaryProfileName">Profile</span>
+                </span>
 
-                <button
-                    id="mobileEncrypt"
-                    class="mobile-mode active"
-                    type="button"
-                >
-                    ENCRYPT
-                </button>
+                <span id="summarySecret" class="summary-secret">••••••••</span>
+                <span class="summary-chevron" aria-hidden="true">⌄</span>
+            </button>
 
+            <div id="credentialsEditor" class="credentials-editor">
+                <div class="credential-column">
+                    <label for="profileSelect">PROFILE</label>
 
-                <button
-                    id="mobileDecrypt"
-                    class="mobile-mode"
-                    type="button"
-                >
-                    DECRYPT
-                </button>
+                    <div class="field-with-actions profile-field-row">
+                        <select id="profileSelect" autocomplete="off">
+                            <option value="">Temporary Session</option>
+                        </select>
 
-            </div>
+                        <button
+                            id="addProfileButton"
+                            class="small-icon-button"
+                            type="button"
+                            aria-label="Add profile"
+                            title="Add profile"
+                        >+</button>
 
+                        <button
+                            id="manageProfilesButton"
+                            class="small-icon-button"
+                            type="button"
+                            aria-label="Manage profiles"
+                            title="Manage profiles"
+                        >•••</button>
+                    </div>
+                </div>
 
-            <!-- =============================================
-                 WORKSPACE
-                 ============================================= -->
+                <div class="credential-column">
+                    <label for="password">SHARED SECRET KEY</label>
 
-            <div class="workspace">
-
-
-                <!-- =========================================
-                     ENCRYPT
-                     ========================================= -->
-
-                <section
-                    id="encryptPanel"
-                    class="cipher-panel active-mobile"
-                >
-
-                    <div class="cipher-panel-title">
-
-                        <div>
-                            <span class="panel-symbol">◇</span>
-                            <h2>ENCRYPT</h2>
-                        </div>
-
-                        <span
-                            id="encryptCounter"
-                            class="counter"
+                    <div class="field-with-actions">
+                        <input
+                            id="password"
+                            type="password"
+                            maxlength="256"
+                            placeholder="Enter shared secret key"
+                            autocomplete="off"
+                            spellcheck="false"
                         >
-                            0 chars
-                        </span>
 
+                        <button
+                            id="togglePassword"
+                            class="small-icon-button eye-button"
+                            type="button"
+                            aria-label="Show secret key"
+                            title="Show secret key"
+                        >◉</button>
                     </div>
 
-
-                    <div class="panel-input-block">
-
-                        <div class="field-title">
-                            MESSAGE
-                        </div>
-
-
-                        <textarea
-                            id="encryptInput"
-                            class="main-textarea"
-                            spellcheck="false"
-                            placeholder="Enter message to encrypt..."
-                        ></textarea>
-
-
-                        <p class="field-help">
-                            The entire input is encrypted as one message
-                            using the current secret key.
-                        </p>
-
+                    <div id="sessionOverride" class="field-note" hidden>
+                        Session override · saved profile unchanged
                     </div>
-
-
-                    <button
-                        id="encryptButton"
-                        class="process-button"
-                        type="button"
-                    >
-
-                        <span class="button-content">
-
-                            <span
-                                id="encryptIcon"
-                                class="process-icon"
-                            >
-                                ◇
-                            </span>
-
-                            <span id="encryptButtonText">
-                                ENCRYPT MESSAGE
-                            </span>
-
-                        </span>
-
-                    </button>
-
-
-                    <div class="panel-output-block">
-
-                        <div class="field-title">
-                            ENCRYPTED OUTPUT
-                        </div>
-
-
-                        <textarea
-                            id="encryptOutput"
-                            class="result-box"
-                            readonly
-                            spellcheck="false"
-                            placeholder="Encrypted Base64 will appear here..."
-                        ></textarea>
-
-
-                        <div class="output-actions">
-
-                            <button
-                                id="copyEncrypted"
-                                class="secondary-button copy-button"
-                                type="button"
-                            >
-                                COPY
-                            </button>
-
-
-                            <button
-                                id="clearEncrypt"
-                                class="secondary-button danger"
-                                type="button"
-                            >
-                                CLEAR
-                            </button>
-
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        id="encryptStatusContainer"
-                        class="status-container"
-                        aria-live="polite"
-                    >
-
-                        <span class="status-indicator"></span>
-
-                        <span id="encryptStatus">
-                            READY
-                        </span>
-
-                    </div>
-
-                </section>
-
-
-                <!-- =========================================
-                     DECRYPT
-                     ========================================= -->
-
-                <section
-                    id="decryptPanel"
-                    class="cipher-panel"
-                >
-
-                    <div class="cipher-panel-title">
-
-                        <div>
-                            <span class="panel-symbol">◆</span>
-                            <h2>DECRYPT</h2>
-                        </div>
-
-                        <span
-                            id="decryptCounter"
-                            class="counter"
-                        >
-                            0 messages
-                        </span>
-
-                    </div>
-
-
-                    <div class="panel-input-block">
-
-                        <div class="field-title">
-                            ENCRYPTED MESSAGES
-                        </div>
-
-
-                        <textarea
-                            id="decryptInput"
-                            class="main-textarea"
-                            spellcheck="false"
-                            placeholder="Paste one encrypted Base64 message per line..."
-                        ></textarea>
-
-
-                        <p class="field-help">
-                            Each non-empty line is processed as an independent
-                            encrypted message.
-                        </p>
-
-                    </div>
-
-
-                    <button
-                        id="decryptButton"
-                        class="process-button"
-                        type="button"
-                    >
-
-                        <span class="button-content">
-
-                            <span
-                                id="decryptIcon"
-                                class="process-icon"
-                            >
-                                ◆
-                            </span>
-
-                            <span id="decryptButtonText">
-                                DECRYPT MESSAGES
-                            </span>
-
-                        </span>
-
-                    </button>
-
-
-                    <div class="panel-output-block">
-
-                        <div class="field-title">
-                            DECRYPTED OUTPUT
-                        </div>
-
-
-                        <textarea
-                            id="decryptOutput"
-                            class="result-box"
-                            readonly
-                            spellcheck="false"
-                            placeholder="Decrypted messages will appear here..."
-                        ></textarea>
-
-
-                        <div class="output-actions">
-
-                            <button
-                                id="copyDecrypted"
-                                class="secondary-button copy-button"
-                                type="button"
-                            >
-                                COPY
-                            </button>
-
-
-                            <button
-                                id="clearDecrypt"
-                                class="secondary-button danger"
-                                type="button"
-                            >
-                                CLEAR
-                            </button>
-
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        id="decryptStatusContainer"
-                        class="status-container"
-                        aria-live="polite"
-                    >
-
-                        <span class="status-indicator"></span>
-
-                        <span id="decryptStatus">
-                            READY
-                        </span>
-
-                    </div>
-
-                </section>
-
+                </div>
             </div>
-
         </section>
 
+        <nav class="mobile-mode-switch" aria-label="Cipher mode">
+            <button class="mode-button active" type="button" data-mode="encrypt">
+                <span aria-hidden="true">▣</span>
+                ENCRYPT
+            </button>
 
-        <!-- =================================================
-             EMERGENCY
-             ================================================= -->
+            <button class="mode-button" type="button" data-mode="decrypt">
+                <span aria-hidden="true">▤</span>
+                DECRYPT
+            </button>
+        </nav>
 
-        <div class="emergency-row">
+        <div class="workspace">
+            <section id="encryptPanel" class="cipher-panel active-mobile" data-panel="encrypt">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">ENCRYPT</span>
+                        <h2>Message</h2>
+                    </div>
 
-            <div class="eject-description">
-                Emergency local wipe
+                    <span id="encryptCount" class="character-count">0/10,000</span>
+                </div>
+
+                <textarea
+                    id="encryptInput"
+                    maxlength="10000"
+                    placeholder="Type your message here..."
+                    spellcheck="true"
+                ></textarea>
+
+                <button id="encryptButton" class="primary-button" type="button">
+                    <span aria-hidden="true">▣</span>
+                    ENCRYPT MESSAGE
+                </button>
+
+                <div id="encryptResultBlock" class="result-block" hidden>
+                    <div class="result-header">
+                        <span>ENCRYPTED MESSAGE</span>
+                        <span id="encryptStatus" class="status-text"></span>
+                    </div>
+
+                    <textarea
+                        id="encryptOutput"
+                        class="output-area"
+                        readonly
+                        spellcheck="false"
+                    ></textarea>
+                </div>
+
+                <div class="panel-actions">
+                    <button id="clearEncryptButton" class="text-action danger-soft" type="button">
+                        Clear
+                    </button>
+
+                    <button id="copyEncryptButton" class="text-action" type="button" disabled>
+                        Copy
+                    </button>
+                </div>
+            </section>
+
+            <section id="decryptPanel" class="cipher-panel" data-panel="decrypt">
+                <div class="panel-heading">
+                    <div>
+                        <span class="eyebrow">DECRYPT</span>
+                        <h2>Encrypted messages</h2>
+                    </div>
+
+                    <span id="decryptCount" class="character-count">0 messages</span>
+                </div>
+
+                <textarea
+                    id="decryptInput"
+                    maxlength="60000"
+                    placeholder="Paste one encrypted message per line..."
+                    spellcheck="false"
+                ></textarea>
+
+                <div class="helper-text">
+                    Each non-empty line is decrypted independently with the same secret key.
+                </div>
+
+                <button id="decryptButton" class="primary-button" type="button">
+                    <span aria-hidden="true">▤</span>
+                    DECRYPT MESSAGE(S)
+                </button>
+
+                <div id="decryptResultBlock" class="result-block" hidden>
+                    <div class="result-header">
+                        <span>DECRYPTED RESULT</span>
+                        <span id="decryptStatus" class="status-text"></span>
+                    </div>
+
+                    <textarea
+                        id="decryptOutput"
+                        class="output-area"
+                        readonly
+                        spellcheck="false"
+                    ></textarea>
+                </div>
+
+                <div class="panel-actions">
+                    <button id="clearDecryptButton" class="text-action danger-soft" type="button">
+                        Clear
+                    </button>
+
+                    <button id="copyDecryptButton" class="text-action" type="button" disabled>
+                        Copy
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <footer class="app-footer">
+            <div class="footer-copy">
+                <span class="footer-dot"></span>
+                AES-256-GCM · PBKDF2-SHA256
             </div>
-
 
             <button
                 id="ejectButton"
                 class="eject-button"
                 type="button"
-                aria-label="Hold to eject and clear local CipherVault data"
+                title="Click to clear the visible session. Hold to erase saved CipherVault credentials."
             >
-
-                <span class="eject-progress"></span>
-
-                <span class="eject-content">
-                    ⏏ HOLD TO EJECT
-                </span>
-
+                <span class="eject-icon" aria-hidden="true">⏻</span>
+                <span>HOLD TO EJECT</span>
             </button>
-
-        </div>
-
-
-        <!-- =================================================
-             FOOTER
-             ================================================= -->
-
-        <footer>
-
-            <div class="crypto-info">
-
-                AES-256-GCM
-
-                <span>•</span>
-
-                PBKDF2-SHA256
-
-                <span>•</span>
-
-                BASE64
-
-            </div>
-
-
-            <p>
-                Encryption and decryption are performed locally in your browser.
-            </p>
-
         </footer>
-
     </main>
 
-
-    <!-- =====================================================
-         PROFILE FORM MODAL
-         ===================================================== -->
-
-    <div
-        id="profileModal"
-        class="modal-backdrop"
-        hidden
-    >
-
-        <div
-            class="modal-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="profileModalTitle"
-        >
-
-            <div class="modal-heading">
-
+    <!-- Add / Edit Profile Modal -->
+    <div id="profileModal" class="modal-backdrop" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+            <div class="modal-header">
                 <div>
-
-                    <div class="modal-symbol">
-                        ◇
-                    </div>
-
-                    <div>
-
-                        <h3 id="profileModalTitle">
-                            New Profile
-                        </h3>
-
-                        <p>
-                            Store a different secret for each contact.
-                        </p>
-
-                    </div>
-
+                    <span class="eyebrow">PROFILE</span>
+                    <h3 id="profileModalTitle">Add profile</h3>
                 </div>
 
+                <button id="closeProfileModal" class="modal-close" type="button" aria-label="Close">×</button>
             </div>
 
+            <label for="profileName">PROFILE NAME</label>
+            <input
+                id="profileName"
+                type="text"
+                maxlength="40"
+                placeholder="Example: Somos todos andhika"
+                autocomplete="off"
+            >
 
-            <form id="profileForm">
-
-                <div class="modal-field">
-
-                    <label for="profileName">
-                        PROFILE NAME
-                    </label>
-
-                    <input
-                        id="profileName"
-                        type="text"
-                        maxlength="40"
-                        placeholder="Example: Cristian"
-                        autocomplete="off"
-                    >
-
-                </div>
-
-
-                <div class="modal-field">
-
-                    <label for="profileSecret">
-                        SECRET KEY
-                    </label>
-
-
-                    <div class="password-wrapper">
-
-                        <input
-                            id="profileSecret"
-                            type="password"
-                            placeholder="Secret shared with this person"
-                            autocomplete="new-password"
-                        >
-
-
-                        <button
-                            id="toggleProfileSecret"
-                            class="icon-button"
-                            type="button"
-                            aria-label="Show profile password"
-                        >
-                            ◉
-                        </button>
-
-                    </div>
-
-                </div>
-
-
-                <p
-                    id="profileFormError"
-                    class="form-error"
-                ></p>
-
-
-                <div class="modal-actions">
-
-                    <button
-                        id="cancelProfile"
-                        class="modal-button"
-                        type="button"
-                    >
-                        CANCEL
-                    </button>
-
-
-                    <button
-                        class="modal-button primary"
-                        type="submit"
-                    >
-                        SAVE PROFILE
-                    </button>
-
-                </div>
-
-            </form>
-
-        </div>
-
-    </div>
-
-
-    <!-- =====================================================
-         MANAGE PROFILES MODAL
-         ===================================================== -->
-
-    <div
-        id="manageModal"
-        class="modal-backdrop"
-        hidden
-    >
-
-        <div
-            class="modal-card manage-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="manageModalTitle"
-        >
-
-            <div class="modal-heading">
-
-                <div>
-
-                    <div class="modal-symbol">
-                        ◇
-                    </div>
-
-                    <div>
-
-                        <h3 id="manageModalTitle">
-                            Profiles
-                        </h3>
-
-                        <p>
-                            Manage locally stored CipherVault profiles.
-                        </p>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <div
-                id="profilesList"
-                class="profiles-list"
-            ></div>
-
-
-            <div class="modal-actions">
+            <label for="profileSecret">SHARED SECRET KEY</label>
+            <div class="field-with-actions">
+                <input
+                    id="profileSecret"
+                    type="password"
+                    maxlength="256"
+                    placeholder="Secret key for this profile"
+                    autocomplete="off"
+                    spellcheck="false"
+                >
 
                 <button
-                    id="closeManage"
-                    class="modal-button"
+                    id="toggleProfileSecret"
+                    class="small-icon-button eye-button"
                     type="button"
-                >
-                    CLOSE
-                </button>
-
+                    aria-label="Show profile secret key"
+                    title="Show secret key"
+                >◉</button>
             </div>
 
-        </div>
+            <div id="profileModalError" class="modal-error" hidden></div>
 
+            <div class="modal-actions">
+                <button id="cancelProfileButton" class="secondary-button" type="button">Cancel</button>
+                <button id="saveProfileButton" class="primary-button compact" type="button">Save profile</button>
+            </div>
+        </div>
     </div>
 
+    <!-- Manage Profiles Modal -->
+    <div id="manageProfilesModal" class="modal-backdrop" hidden>
+        <div class="modal-card manage-card" role="dialog" aria-modal="true" aria-labelledby="manageProfilesTitle">
+            <div class="modal-header">
+                <div>
+                    <span class="eyebrow">PROFILES</span>
+                    <h3 id="manageProfilesTitle">Manage profiles</h3>
+                </div>
 
-    <!-- =====================================================
-         GENERIC CONFIRMATION
-         ===================================================== -->
-
-    <div
-        id="confirmModal"
-        class="modal-backdrop"
-        hidden
-    >
-
-        <div
-            class="modal-card confirm-card"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="confirmTitle"
-        >
-
-            <div class="confirm-icon">
-                !
+                <button id="closeManageProfilesModal" class="modal-close" type="button" aria-label="Close">×</button>
             </div>
 
+            <div id="profilesList" class="profiles-list"></div>
 
-            <h3 id="confirmTitle">
-                Confirm action
-            </h3>
+            <div class="modal-actions single-action">
+                <button id="manageAddProfileButton" class="primary-button compact" type="button">+ Add profile</button>
+            </div>
+        </div>
+    </div>
 
+    <!-- Clear confirmation -->
+    <div id="clearModal" class="modal-backdrop" hidden>
+        <div class="modal-card small-modal" role="dialog" aria-modal="true" aria-labelledby="clearModalTitle">
+            <div class="modal-header">
+                <div>
+                    <span class="eyebrow">CONFIRM</span>
+                    <h3 id="clearModalTitle">Clear panel?</h3>
+                </div>
 
-            <p id="confirmMessage">
-                Are you sure?
+                <button id="closeClearModal" class="modal-close" type="button" aria-label="Close">×</button>
+            </div>
+
+            <p id="clearModalText" class="modal-copy">
+                This clears only this panel. Your shared secret key and saved profiles are retained.
             </p>
 
-
             <div class="modal-actions">
-
-                <button
-                    id="cancelConfirm"
-                    class="modal-button"
-                    type="button"
-                >
-                    CANCEL
-                </button>
-
-
-                <button
-                    id="acceptConfirm"
-                    class="modal-button danger-solid"
-                    type="button"
-                >
-                    CONFIRM
-                </button>
-
+                <button id="cancelClearButton" class="secondary-button" type="button">Cancel</button>
+                <button id="confirmClearButton" class="danger-button" type="button">Clear panel</button>
             </div>
-
         </div>
-
     </div>
 
-
-    <!-- =====================================================
-         EJECT OVERLAY
-         ===================================================== -->
-
-    <div
-        id="ejectOverlay"
-        class="eject-overlay"
-        hidden
-    >
-
-        <div>
-            <span>◇</span>
-            <p>SESSION CLOSED</p>
-        </div>
-
-    </div>
-
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="app.js"></script>
-
 </body>
-
 </html>

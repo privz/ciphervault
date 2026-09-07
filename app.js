@@ -1,4705 +1,1260 @@
-// ======================================================
-// CIPHERVAULT
-// ======================================================
+"use strict";
 
+/* =========================================================
+   CipherVault
+   Client-side AES-256-GCM + PBKDF2-SHA256
+   ========================================================= */
 
-// ======================================================
-// CRYPTO CONFIG
-// ======================================================
+const VERSION = 1;
+const SALT_LENGTH = 16;
+const IV_LENGTH = 12;
+const GCM_TAG_LENGTH = 128;
+const PBKDF2_ITERATIONS = 300000;
+const MAX_MESSAGE_LENGTH = 10000;
 
-const encoder =
-    new TextEncoder();
+const DB_NAME = "ciphervault";
+const DB_VERSION = 1;
+const KEY_STORE = "keys";
+const DATA_STORE = "data";
+const WRAP_KEY_ID = "profile-wrap-key";
+const PROFILES_BLOB_ID = "profiles-v1";
 
-const decoder =
-    new TextDecoder();
+const THEME_KEY = "ciphervault-theme";
+const ACTIVE_PROFILE_KEY = "ciphervault-active-profile";
+const STORAGE_PREFIX = "ciphervault-";
 
-const VERSION =
-    1;
+const EJECT_HOLD_DURATION = 900;
+const EJECT_DESTINATION = "https://github.com/";
 
-const SALT_LENGTH =
-    16;
+// SHA-256("admin"). The literal trigger is intentionally not stored as plaintext.
+// This is an application-level decoy feature, not cryptographic plausible deniability.
+const ADMIN_KEY_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
 
-const IV_LENGTH =
-    12;
-
-const GCM_TAG_LENGTH =
-    128;
-
-const PBKDF2_ITERATIONS =
-    300000;
-
-
-// ======================================================
-// APPLICATION STORAGE
-// ======================================================
-
-const THEME_STORAGE_KEY =
-    "ciphervault-theme";
-
-const ACTIVE_PROFILE_STORAGE_KEY =
-    "ciphervault-active-profile";
-
-
-// Previous versions
-
-const LEGACY_KEY_STORAGE_KEY =
-    "ciphervault-saved-key";
-
-const LEGACY_REMEMBER_STORAGE_KEY =
-    "ciphervault-remember-key";
-
-
-// ======================================================
-// INDEXEDDB
-// ======================================================
-
-const DB_NAME =
-    "ciphervault-local-vault";
-
-const DB_VERSION =
-    1;
-
-const DB_STORE =
-    "secure-storage";
-
-const IDB_DEVICE_KEY =
-    "device-wrapping-key";
-
-const IDB_PROFILES =
-    "profiles-v2";
-
-const LEGACY_IDB_SECRET =
-    "saved-secret";
-
-const LEGACY_IDB_REMEMBER =
-    "remember-secret";
-
-let databasePromise =
-    null;
-
-
-// ======================================================
-// ALTERNATE DISPLAY ROUTE
-// ======================================================
-
-/*
-    SHA-256 of the default alternate access key.
-
-    The literal key is intentionally not stored as a
-    plaintext string in this source file.
-
-    This is NOT cryptographic plausible deniability.
-*/
-
-const ALTERNATE_ROUTE_HASH =
-    "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
-
-
-// ======================================================
-// COVER CONVERSATIONS
-// ======================================================
-
-const COVER_THREADS = [
-
-    [
-        "Você conseguiu revisar o arquivo?",
-        "Sim, terminei hoje de manhã.",
-        "Tinha alguma coisa para alterar?",
-        "Só alguns detalhes pequenos.",
-        "Beleza, consegue me mandar depois?",
-        "Consigo sim.",
-        "Vou conferir quando chegar em casa.",
-        "Tranquilo, sem pressa.",
-        "Acho que amanhã já fica resolvido.",
-        "Perfeito, qualquer coisa me avisa.",
-        "Pode deixar.",
-        "Valeu!"
-    ],
-
-    [
-        "Que horas você acha que chega?",
-        "Provavelmente por volta das sete.",
-        "Beleza, eu ainda vou estar por aqui.",
-        "Se eu atrasar eu te aviso.",
-        "Tranquilo.",
-        "Você vai de trem?",
-        "Sim, acho que é mais fácil.",
-        "Então deve estar tranquilo nesse horário.",
-        "Espero que sim.",
-        "Depois me manda mensagem.",
-        "Pode deixar.",
-        "Até mais!"
-    ],
-
-    [
-        "Você conseguiu comprar aquilo?",
-        "Ainda não, vou passar lá amanhã.",
-        "Sem problema.",
-        "Você sabe até que horas fica aberto?",
-        "Acho que fecha às oito.",
-        "Então dá tempo.",
-        "Sim, vou depois do trabalho.",
-        "Se não tiver eu vejo em outro lugar.",
-        "Beleza.",
-        "Quer que eu procure também?",
-        "Não precisa, tranquilo.",
-        "Fechado."
-    ],
-
-    [
-        "Vai almoçar por aí hoje?",
-        "Acho que sim.",
-        "Já sabe onde?",
-        "Ainda não, talvez naquele lugar de sempre.",
-        "Faz tempo que eu não vou lá.",
-        "Eu também.",
-        "Se não estiver cheio pode ser.",
-        "Normalmente nesse horário é tranquilo.",
-        "Então fechou.",
-        "Te aviso quando estiver saindo.",
-        "Beleza.",
-        "Até daqui a pouco."
-    ],
-
-    [
-        "A reunião continua no mesmo horário?",
-        "Sim, não mudaram nada.",
-        "Beleza, achei que tinham alterado.",
-        "Até agora continua igual.",
-        "Você já terminou sua parte?",
-        "Quase, falta revisar uma coisa.",
-        "Eu também preciso conferir a minha.",
-        "Acho que dá tempo tranquilo.",
-        "Sim.",
-        "Depois a gente compara antes de enviar.",
-        "Boa ideia.",
-        "Fechado."
-    ],
-
-    [
-        "Conseguiu resolver aquele negócio?",
-        "Mais ou menos.",
-        "O que aconteceu?",
-        "Faltou uma informação que eu não tinha.",
-        "Ah, entendi.",
-        "Vou tentar descobrir.",
-        "Se conseguir me manda.",
-        "Pode deixar.",
-        "Acho que amanhã já dá para finalizar.",
-        "Ótimo.",
-        "Depois me fala como ficou.",
-        "Falo sim."
-    ],
-
-    [
-        "Você vai fazer alguma coisa no fim de semana?",
-        "Ainda não decidi.",
-        "Eu também estou sem planos.",
-        "Talvez eu saia no sábado.",
-        "Se o tempo estiver bom vale a pena.",
-        "Sim, estava pensando nisso.",
-        "Depois vê e me fala.",
-        "Pode deixar.",
-        "Se não der a gente marca outro dia.",
-        "Tranquilo.",
-        "Sem pressa.",
-        "Fechado."
-    ],
-
-    [
-        "Você recebeu minha mensagem de ontem?",
-        "Recebi sim.",
-        "Achei que não tinha chegado.",
-        "Eu vi mais tarde.",
-        "Ah, tranquilo.",
-        "Eu estava ocupado e acabei não respondendo.",
-        "Sem problema.",
-        "Depois a gente conversa com calma.",
-        "Pode ser.",
-        "Hoje estou mais tranquilo.",
-        "Então te chamo depois.",
-        "Beleza."
-    ]
-
+const DECOY_MESSAGES = [
+    "Cheguei agora. Te aviso quando estiver saindo.",
+    "Fechado, amanhã depois do almoço funciona para mim.",
+    "Beleza, confirmo de manhã quando eu tiver certeza do horário.",
+    "Pode deixar, já vi aqui e está tudo certo.",
+    "Vou terminar isso primeiro e depois te mando uma mensagem.",
+    "Tranquilo, não precisa correr. A gente resolve depois.",
+    "Acho melhor deixar para amanhã, hoje ficou meio apertado.",
+    "Consegui ajustar. Quando puder, dá uma olhada para mim.",
+    "Estou indo almoçar agora. Depois volto e continuo.",
+    "Sim, esse horário funciona. Se mudar alguma coisa eu aviso.",
+    "Acabei de chegar em casa, hoje foi corrido demais.",
+    "Vi sua mensagem agora. Amanhã conversamos com mais calma.",
+    "Pode ser naquele lugar de sempre, para mim é mais fácil.",
+    "Perfeito. Vou anotar aqui para não esquecer.",
+    "Terminei aquela parte que faltava. O resto fica para depois.",
+    "Sem problema, eu também estava ocupado nessa hora.",
+    "Vou conferir isso quando chegar e te respondo.",
+    "A princípio está certo. Só quero confirmar mais uma coisa.",
+    "Boa, então ficou combinado desse jeito.",
+    "Valeu por avisar. Eu já estava me organizando por aqui."
 ];
 
-
-// ======================================================
-// DOM
-// ======================================================
-
-const profileSelect =
-    document.getElementById(
-        "profileSelect"
-    );
-
-const addProfile =
-    document.getElementById(
-        "addProfile"
-    );
-
-const manageProfiles =
-    document.getElementById(
-        "manageProfiles"
-    );
-
-const profileNotice =
-    document.getElementById(
-        "profileNotice"
-    );
-
-const profileStorageHint =
-    document.getElementById(
-        "profileStorageHint"
-    );
-
-const password =
-    document.getElementById(
-        "password"
-    );
-
-const togglePassword =
-    document.getElementById(
-        "togglePassword"
-    );
-
-const keySourceHint =
-    document.getElementById(
-        "keySourceHint"
-    );
-
-const themeToggle =
-    document.getElementById(
-        "themeToggle"
-    );
-
-const themeIcon =
-    document.getElementById(
-        "themeIcon"
-    );
-
-
-// Encrypt
-
-const encryptPanel =
-    document.getElementById(
-        "encryptPanel"
-    );
-
-const encryptInput =
-    document.getElementById(
-        "encryptInput"
-    );
-
-const encryptOutput =
-    document.getElementById(
-        "encryptOutput"
-    );
-
-const encryptCounter =
-    document.getElementById(
-        "encryptCounter"
-    );
-
-const encryptButton =
-    document.getElementById(
-        "encryptButton"
-    );
-
-const encryptButtonText =
-    document.getElementById(
-        "encryptButtonText"
-    );
-
-const encryptIcon =
-    document.getElementById(
-        "encryptIcon"
-    );
-
-const copyEncrypted =
-    document.getElementById(
-        "copyEncrypted"
-    );
-
-const clearEncrypt =
-    document.getElementById(
-        "clearEncrypt"
-    );
-
-const encryptStatusContainer =
-    document.getElementById(
-        "encryptStatusContainer"
-    );
-
-const encryptStatus =
-    document.getElementById(
-        "encryptStatus"
-    );
-
-
-// Decrypt
-
-const decryptPanel =
-    document.getElementById(
-        "decryptPanel"
-    );
-
-const decryptInput =
-    document.getElementById(
-        "decryptInput"
-    );
-
-const decryptOutput =
-    document.getElementById(
-        "decryptOutput"
-    );
-
-const decryptCounter =
-    document.getElementById(
-        "decryptCounter"
-    );
-
-const decryptButton =
-    document.getElementById(
-        "decryptButton"
-    );
-
-const decryptButtonText =
-    document.getElementById(
-        "decryptButtonText"
-    );
-
-const decryptIcon =
-    document.getElementById(
-        "decryptIcon"
-    );
-
-const copyDecrypted =
-    document.getElementById(
-        "copyDecrypted"
-    );
-
-const clearDecrypt =
-    document.getElementById(
-        "clearDecrypt"
-    );
-
-const decryptStatusContainer =
-    document.getElementById(
-        "decryptStatusContainer"
-    );
-
-const decryptStatus =
-    document.getElementById(
-        "decryptStatus"
-    );
-
-
-// Mobile
-
-const mobileEncrypt =
-    document.getElementById(
-        "mobileEncrypt"
-    );
-
-const mobileDecrypt =
-    document.getElementById(
-        "mobileDecrypt"
-    );
-
-
-// Profile form modal
-
-const profileModal =
-    document.getElementById(
-        "profileModal"
-    );
-
-const profileModalTitle =
-    document.getElementById(
-        "profileModalTitle"
-    );
-
-const profileForm =
-    document.getElementById(
-        "profileForm"
-    );
-
-const profileName =
-    document.getElementById(
-        "profileName"
-    );
-
-const profileSecret =
-    document.getElementById(
-        "profileSecret"
-    );
-
-const toggleProfileSecret =
-    document.getElementById(
-        "toggleProfileSecret"
-    );
-
-const profileFormError =
-    document.getElementById(
-        "profileFormError"
-    );
-
-const cancelProfile =
-    document.getElementById(
-        "cancelProfile"
-    );
-
-
-// Manage modal
-
-const manageModal =
-    document.getElementById(
-        "manageModal"
-    );
-
-const profilesList =
-    document.getElementById(
-        "profilesList"
-    );
-
-const closeManage =
-    document.getElementById(
-        "closeManage"
-    );
-
-
-// Confirmation
-
-const confirmModal =
-    document.getElementById(
-        "confirmModal"
-    );
-
-const confirmTitle =
-    document.getElementById(
-        "confirmTitle"
-    );
-
-const confirmMessage =
-    document.getElementById(
-        "confirmMessage"
-    );
-
-const cancelConfirm =
-    document.getElementById(
-        "cancelConfirm"
-    );
-
-const acceptConfirm =
-    document.getElementById(
-        "acceptConfirm"
-    );
-
-
-// Eject
-
-const ejectButton =
-    document.getElementById(
-        "ejectButton"
-    );
-
-const ejectOverlay =
-    document.getElementById(
-        "ejectOverlay"
-    );
-
-
-// ======================================================
-// APPLICATION STATE
-// ======================================================
-
-let profiles =
-    [];
-
-let activeProfileId =
-    "";
-
-let temporarySecret =
-    "";
-
-let editingProfileId =
-    null;
-
-let pendingConfirmation =
-    null;
-
-let ejectTimer =
-    null;
-
-let ejectTriggered =
-    false;
-
-
-// ======================================================
-// INDEXEDDB
-// ======================================================
-
-function openDatabase() {
-
-    if (
-        databasePromise
-    ) {
-
-        return databasePromise;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
+let dbInstance = null;
+let profiles = [];
+let editingProfileId = null;
+let clearTarget = null;
+let toastTimer = null;
+let ejectHoldTimer = null;
+let ejectCommitted = false;
+
+/* =========================================================
+   DOM
+   ========================================================= */
+
+const root = document.documentElement;
+
+const themeToggle = document.getElementById("themeToggle");
+const themeIcon = document.getElementById("themeIcon");
+
+const credentialsSection = document.getElementById("credentialsSection");
+const credentialsSummary = document.getElementById("credentialsSummary");
+const summaryProfileName = document.getElementById("summaryProfileName");
+const summarySecret = document.getElementById("summarySecret");
+
+const profileSelect = document.getElementById("profileSelect");
+const addProfileButton = document.getElementById("addProfileButton");
+const manageProfilesButton = document.getElementById("manageProfilesButton");
+const password = document.getElementById("password");
+const togglePassword = document.getElementById("togglePassword");
+const sessionOverride = document.getElementById("sessionOverride");
+
+const modeButtons = Array.from(document.querySelectorAll(".mode-button"));
+const cipherPanels = Array.from(document.querySelectorAll(".cipher-panel"));
+
+const encryptInput = document.getElementById("encryptInput");
+const encryptOutput = document.getElementById("encryptOutput");
+const encryptButton = document.getElementById("encryptButton");
+const encryptCount = document.getElementById("encryptCount");
+const encryptResultBlock = document.getElementById("encryptResultBlock");
+const encryptStatus = document.getElementById("encryptStatus");
+const copyEncryptButton = document.getElementById("copyEncryptButton");
+const clearEncryptButton = document.getElementById("clearEncryptButton");
+
+const decryptInput = document.getElementById("decryptInput");
+const decryptOutput = document.getElementById("decryptOutput");
+const decryptButton = document.getElementById("decryptButton");
+const decryptCount = document.getElementById("decryptCount");
+const decryptResultBlock = document.getElementById("decryptResultBlock");
+const decryptStatus = document.getElementById("decryptStatus");
+const copyDecryptButton = document.getElementById("copyDecryptButton");
+const clearDecryptButton = document.getElementById("clearDecryptButton");
+
+const ejectButton = document.getElementById("ejectButton");
+
+const profileModal = document.getElementById("profileModal");
+const profileModalTitle = document.getElementById("profileModalTitle");
+const profileName = document.getElementById("profileName");
+const profileSecret = document.getElementById("profileSecret");
+const toggleProfileSecret = document.getElementById("toggleProfileSecret");
+const profileModalError = document.getElementById("profileModalError");
+const closeProfileModal = document.getElementById("closeProfileModal");
+const cancelProfileButton = document.getElementById("cancelProfileButton");
+const saveProfileButton = document.getElementById("saveProfileButton");
+
+const manageProfilesModal = document.getElementById("manageProfilesModal");
+const profilesList = document.getElementById("profilesList");
+const closeManageProfilesModal = document.getElementById("closeManageProfilesModal");
+const manageAddProfileButton = document.getElementById("manageAddProfileButton");
+
+const clearModal = document.getElementById("clearModal");
+const clearModalTitle = document.getElementById("clearModalTitle");
+const clearModalText = document.getElementById("clearModalText");
+const closeClearModal = document.getElementById("closeClearModal");
+const cancelClearButton = document.getElementById("cancelClearButton");
+const confirmClearButton = document.getElementById("confirmClearButton");
+
+const toast = document.getElementById("toast");
+
+/* =========================================================
+   Initialization
+   ========================================================= */
+
+async function initializeApp() {
+    detectExtensionMode();
+    initializeTheme();
+    bindEvents();
+    setMobileMode("encrypt");
+    updateEncryptCount();
+    updateDecryptCount();
+
+    try {
+        profiles = await loadProfiles();
+        renderProfileSelect();
+        await restoreActiveProfile();
+    } catch (error) {
+        console.error("Profile storage initialization failed:", error);
+        showToast("Profiles could not be loaded.", true);
+    }
+}
+
+function detectExtensionMode() {
+    try {
+        if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
+            root.classList.add("extension-mode");
+        }
+    } catch {
+        // Normal website context.
+    }
+}
+
+function isExtensionMode() {
+    return root.classList.contains("extension-mode");
+}
+
+/* =========================================================
+   Theme
+   ========================================================= */
+
+function initializeTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    const preferredTheme = window.matchMedia?.("(prefers-color-scheme: light)").matches
+        ? "light"
+        : "dark";
+
+    applyTheme(savedTheme === "light" || savedTheme === "dark" ? savedTheme : preferredTheme);
+}
+
+function applyTheme(theme) {
+    root.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const isLight = root.getAttribute("data-theme") === "light";
+    themeIcon.textContent = isLight ? "☾" : "☀";
+    themeToggle.title = isLight ? "Switch to dark mode" : "Switch to light mode";
+    themeToggle.setAttribute("aria-label", themeToggle.title);
+}
+
+function toggleTheme() {
+    const current = root.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(current === "light" ? "dark" : "light");
+}
+
+/* =========================================================
+   IndexedDB profile storage
+   ========================================================= */
+
+function openVaultDB() {
+    if (dbInstance) {
+        return Promise.resolve(dbInstance);
     }
 
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    databasePromise =
-        new Promise(
-            (
-                resolve,
-                reject
-            ) => {
+        request.onupgradeneeded = () => {
+            const db = request.result;
 
-                const request =
-                    indexedDB.open(
-                        DB_NAME,
-                        DB_VERSION
-                    );
-
-
-                request.onupgradeneeded =
-                    event => {
-
-                        const db =
-                            event.target.result;
-
-
-                        if (
-                            !db.objectStoreNames.contains(
-                                DB_STORE
-                            )
-                        ) {
-
-                            db.createObjectStore(
-                                DB_STORE
-                            );
-                        }
-
-                    };
-
-
-                request.onsuccess =
-                    () => {
-
-                        resolve(
-                            request.result
-                        );
-                    };
-
-
-                request.onerror =
-                    () => {
-
-                        reject(
-                            request.error
-                        );
-                    };
-
+            if (!db.objectStoreNames.contains(KEY_STORE)) {
+                db.createObjectStore(KEY_STORE);
             }
-        );
 
+            if (!db.objectStoreNames.contains(DATA_STORE)) {
+                db.createObjectStore(DATA_STORE);
+            }
+        };
 
-    return databasePromise;
+        request.onsuccess = () => {
+            dbInstance = request.result;
+            dbInstance.onversionchange = () => {
+                dbInstance?.close();
+                dbInstance = null;
+            };
+            resolve(dbInstance);
+        };
+
+        request.onerror = () => reject(request.error || new Error("Unable to open IndexedDB."));
+    });
 }
 
+async function idbGet(storeName, key) {
+    const db = await openVaultDB();
 
-async function idbGet(
-    key
-) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, "readonly");
+        const request = transaction.objectStore(storeName).get(key);
 
-    const db =
-        await openDatabase();
-
-
-    return new Promise(
-        (
-            resolve,
-            reject
-        ) => {
-
-            const transaction =
-                db.transaction(
-                    DB_STORE,
-                    "readonly"
-                );
-
-
-            const request =
-                transaction
-                    .objectStore(
-                        DB_STORE
-                    )
-                    .get(
-                        key
-                    );
-
-
-            request.onsuccess =
-                () => {
-
-                    resolve(
-                        request.result
-                    );
-                };
-
-
-            request.onerror =
-                () => {
-
-                    reject(
-                        request.error
-                    );
-                };
-
-        }
-    );
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("IndexedDB read failed."));
+    });
 }
 
+async function idbPut(storeName, key, value) {
+    const db = await openVaultDB();
 
-async function idbSet(
-    key,
-    value
-) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, "readwrite");
+        transaction.objectStore(storeName).put(value, key);
 
-    const db =
-        await openDatabase();
-
-
-    return new Promise(
-        (
-            resolve,
-            reject
-        ) => {
-
-            const transaction =
-                db.transaction(
-                    DB_STORE,
-                    "readwrite"
-                );
-
-
-            transaction
-                .objectStore(
-                    DB_STORE
-                )
-                .put(
-                    value,
-                    key
-                );
-
-
-            transaction.oncomplete =
-                () => resolve();
-
-
-            transaction.onerror =
-                () => {
-
-                    reject(
-                        transaction.error
-                    );
-                };
-
-        }
-    );
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error("IndexedDB write failed."));
+        transaction.onabort = () => reject(transaction.error || new Error("IndexedDB write aborted."));
+    });
 }
 
+async function getWrappingKey() {
+    const existing = await idbGet(KEY_STORE, WRAP_KEY_ID);
 
-async function idbDelete(
-    key
-) {
-
-    const db =
-        await openDatabase();
-
-
-    return new Promise(
-        (
-            resolve,
-            reject
-        ) => {
-
-            const transaction =
-                db.transaction(
-                    DB_STORE,
-                    "readwrite"
-                );
-
-
-            transaction
-                .objectStore(
-                    DB_STORE
-                )
-                .delete(
-                    key
-                );
-
-
-            transaction.oncomplete =
-                () => resolve();
-
-
-            transaction.onerror =
-                () => {
-
-                    reject(
-                        transaction.error
-                    );
-                };
-
-        }
-    );
-}
-
-
-// ======================================================
-// LOCAL WRAPPING KEY
-// ======================================================
-
-async function getOrCreateDeviceKey() {
-
-    let key =
-        await idbGet(
-            IDB_DEVICE_KEY
-        );
-
-
-    if (
-        key
-    ) {
-
-        return key;
+    if (existing) {
+        return existing;
     }
 
-
-    key =
-        await crypto.subtle.generateKey(
-
-            {
-                name:
-                    "AES-GCM",
-
-                length:
-                    256
-            },
-
-            false,
-
-            [
-                "encrypt",
-                "decrypt"
-            ]
-        );
-
-
-    await idbSet(
-        IDB_DEVICE_KEY,
-        key
+    const key = await crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
     );
 
-
+    await idbPut(KEY_STORE, WRAP_KEY_ID, key);
     return key;
 }
 
+async function loadProfiles() {
+    const record = await idbGet(DATA_STORE, PROFILES_BLOB_ID);
 
-// ======================================================
-// SECURE OBJECT STORAGE
-// ======================================================
-
-async function storeSecureObject(
-    recordName,
-    value
-) {
-
-    const key =
-        await getOrCreateDeviceKey();
-
-
-    const iv =
-        crypto.getRandomValues(
-            new Uint8Array(
-                12
-            )
-        );
-
-
-    const plaintext =
-        encoder.encode(
-            JSON.stringify(
-                value
-            )
-        );
-
-
-    const ciphertext =
-        await crypto.subtle.encrypt(
-
-            {
-                name:
-                    "AES-GCM",
-
-                iv:
-                    iv
-            },
-
-            key,
-
-            plaintext
-        );
-
-
-    await idbSet(
-
-        recordName,
-
-        {
-            version:
-                1,
-
-            iv:
-                Array.from(
-                    iv
-                ),
-
-            ciphertext:
-                Array.from(
-                    new Uint8Array(
-                        ciphertext
-                    )
-                )
-        }
-    );
-}
-
-
-async function readSecureObject(
-    recordName
-) {
-
-    const record =
-        await idbGet(
-            recordName
-        );
-
-
-    if (
-        !record
-    ) {
-
-        return null;
+    if (!record) {
+        return [];
     }
-
-
-    if (
-        record.version !== 1
-    ) {
-
-        throw new Error(
-            "Unsupported secure storage format."
-        );
-    }
-
-
-    const key =
-        await idbGet(
-            IDB_DEVICE_KEY
-        );
-
-
-    if (
-        !key
-    ) {
-
-        throw new Error(
-            "Local wrapping key is unavailable."
-        );
-    }
-
-
-    const plaintext =
-        await crypto.subtle.decrypt(
-
-            {
-                name:
-                    "AES-GCM",
-
-                iv:
-                    new Uint8Array(
-                        record.iv
-                    )
-            },
-
-            key,
-
-            new Uint8Array(
-                record.ciphertext
-            )
-        );
-
-
-    return JSON.parse(
-        decoder.decode(
-            plaintext
-        )
-    );
-}
-
-
-// ======================================================
-// OLD SAVED SECRET SUPPORT
-// ======================================================
-
-async function readLegacyIndexedSecret() {
-
-    const record =
-        await idbGet(
-            LEGACY_IDB_SECRET
-        );
-
-
-    if (
-        !record
-    ) {
-
-        return null;
-    }
-
-
-    const key =
-        await idbGet(
-            IDB_DEVICE_KEY
-        );
-
-
-    if (
-        !key
-    ) {
-
-        return null;
-    }
-
 
     try {
+        const wrappingKey = await getWrappingKey();
+        const iv = base64ToBytes(record.iv);
+        const ciphertext = base64ToBytes(record.ciphertext);
 
-        const plaintext =
-            await crypto.subtle.decrypt(
-
-                {
-                    name:
-                        "AES-GCM",
-
-                    iv:
-                        new Uint8Array(
-                            record.iv
-                        )
-                },
-
-                key,
-
-                new Uint8Array(
-                    record.ciphertext
-                )
-            );
-
-
-        return decoder.decode(
-            plaintext
+        const plaintext = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv, tagLength: GCM_TAG_LENGTH },
+            wrappingKey,
+            ciphertext
         );
 
-
-    } catch {
-
-        return null;
+        const parsed = JSON.parse(decoder.decode(plaintext));
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.error("Unable to decrypt saved profiles:", error);
+        return [];
     }
 }
-
-
-// ======================================================
-// PROFILE STORAGE
-// ======================================================
 
 async function persistProfiles() {
+    const wrappingKey = await getWrappingKey();
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+    const plaintext = encoder.encode(JSON.stringify(profiles));
 
-    await storeSecureObject(
-        IDB_PROFILES,
-        profiles
+    const ciphertext = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv, tagLength: GCM_TAG_LENGTH },
+        wrappingKey,
+        plaintext
     );
+
+    await idbPut(DATA_STORE, PROFILES_BLOB_ID, {
+        iv: bytesToBase64(iv),
+        ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+    });
 }
 
+function makeProfileId() {
+    if (crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
 
-async function loadProfiles() {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+}
 
-    const saved =
-        await readSecureObject(
-            IDB_PROFILES
-        );
+/* =========================================================
+   Profiles UI
+   ========================================================= */
 
+function renderProfileSelect() {
+    const selectedValue = profileSelect.value;
 
-    if (
-        Array.isArray(
-            saved
-        )
-    ) {
+    profileSelect.innerHTML = "";
 
-        profiles =
-            saved;
+    const temporary = document.createElement("option");
+    temporary.value = "";
+    temporary.textContent = "Temporary Session";
+    profileSelect.appendChild(temporary);
 
-    } else {
+    for (const profile of profiles) {
+        const option = document.createElement("option");
+        option.value = profile.id;
+        option.textContent = profile.name;
+        profileSelect.appendChild(option);
+    }
 
-        profiles =
-            [];
+    if (profiles.some(profile => profile.id === selectedValue)) {
+        profileSelect.value = selectedValue;
     }
 }
 
+async function restoreActiveProfile() {
+    const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY);
 
-// ======================================================
-// LEGACY MIGRATION
-// ======================================================
-
-async function migrateLegacyData() {
-
-    if (
-        profiles.length > 0
-    ) {
-
-        localStorage.removeItem(
-            LEGACY_KEY_STORAGE_KEY
-        );
-
-        localStorage.removeItem(
-            LEGACY_REMEMBER_STORAGE_KEY
-        );
-
+    if (!activeId) {
+        expandCredentials();
         return;
     }
 
+    const profile = profiles.find(item => item.id === activeId);
 
-    let oldSecret =
-        null;
-
-
-    const plaintextLegacy =
-        localStorage.getItem(
-            LEGACY_KEY_STORAGE_KEY
-        );
-
-
-    if (
-        plaintextLegacy
-    ) {
-
-        oldSecret =
-            plaintextLegacy;
-
-    } else {
-
-        oldSecret =
-            await readLegacyIndexedSecret();
+    if (!profile) {
+        localStorage.removeItem(ACTIVE_PROFILE_KEY);
+        expandCredentials();
+        return;
     }
 
+    profileSelect.value = profile.id;
+    password.value = profile.secretKey;
+    sessionOverride.hidden = true;
+    collapseCredentials(profile.name);
+}
 
-    if (
-        oldSecret
-    ) {
-
-        profiles.push(
-            {
-                id:
-                    createId(),
-
-                name:
-                    "Default",
-
-                secretKey:
-                    oldSecret
-            }
-        );
-
-
-        await persistProfiles();
+function collapseCredentials(profileNameValue) {
+    if (!isExtensionMode() || !profileNameValue) {
+        return;
     }
 
-
-    localStorage.removeItem(
-        LEGACY_KEY_STORAGE_KEY
-    );
-
-
-    localStorage.removeItem(
-        LEGACY_REMEMBER_STORAGE_KEY
-    );
-
-
-    await idbDelete(
-        LEGACY_IDB_SECRET
-    );
-
-
-    await idbDelete(
-        LEGACY_IDB_REMEMBER
-    );
+    summaryProfileName.textContent = profileNameValue;
+    summarySecret.textContent = "••••••••";
+    credentialsSection.classList.add("is-collapsed");
+    credentialsSummary.hidden = false;
+    credentialsSummary.setAttribute("aria-expanded", "false");
 }
 
-
-// ======================================================
-// HASH
-// ======================================================
-
-async function sha256Bytes(
-    text
-) {
-
-    const buffer =
-        await crypto.subtle.digest(
-
-            "SHA-256",
-
-            encoder.encode(
-                text
-            )
-        );
-
-
-    return new Uint8Array(
-        buffer
-    );
+function expandCredentials() {
+    credentialsSection.classList.remove("is-collapsed");
+    credentialsSummary.hidden = true;
+    credentialsSummary.setAttribute("aria-expanded", "true");
 }
 
+function handleProfileSelection() {
+    const profile = profiles.find(item => item.id === profileSelect.value);
 
-async function sha256Hex(
-    text
-) {
-
-    const bytes =
-        await sha256Bytes(
-            text
-        );
-
-
-    return Array
-        .from(
-            bytes
-        )
-        .map(
-            byte =>
-                byte
-                    .toString(
-                        16
-                    )
-                    .padStart(
-                        2,
-                        "0"
-                    )
-        )
-        .join(
-            ""
-        );
-}
-
-
-async function usesAlternateRoute(
-    secret
-) {
-
-    if (
-        !secret
-    ) {
-
-        return false;
+    if (!profile) {
+        password.value = "";
+        sessionOverride.hidden = true;
+        localStorage.removeItem(ACTIVE_PROFILE_KEY);
+        expandCredentials();
+        return;
     }
 
-
-    return (
-        await sha256Hex(
-            secret
-        )
-    ) ===
-        ALTERNATE_ROUTE_HASH;
+    password.value = profile.secretKey;
+    sessionOverride.hidden = true;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
+    collapseCredentials(profile.name);
 }
 
+function handleSecretOverride() {
+    const profile = profiles.find(item => item.id === profileSelect.value);
 
-// ======================================================
-// COVER OUTPUT
-// ======================================================
-
-async function createCoverTranscript(
-    inputValue
-) {
-
-    const lines =
-        inputValue
-            .replace(
-                /\r/g,
-                ""
-            )
-            .split(
-                "\n"
-            );
-
-
-    const total =
-        lines
-            .filter(
-                line =>
-                    line
-                        .trim()
-                        .length > 0
-            )
-            .length;
-
-
-    if (
-        total === 0
-    ) {
-
-        throw new Error(
-            "Enter at least one encrypted message."
-        );
+    if (!profile) {
+        sessionOverride.hidden = true;
+        return;
     }
 
+    sessionOverride.hidden = password.value === profile.secretKey;
+}
 
-    const seed =
-        await sha256Bytes(
-            lines.join(
-                "\n"
-            )
-        );
+function openProfileEditor(profileId = null) {
+    editingProfileId = profileId;
+    const profile = profiles.find(item => item.id === profileId);
 
+    profileModalTitle.textContent = profile ? "Edit profile" : "Add profile";
+    profileName.value = profile?.name || "";
+    profileSecret.value = profile?.secretKey || "";
+    profileSecret.type = "password";
+    toggleProfileSecret.textContent = "◉";
+    profileModalError.hidden = true;
+    profileModalError.textContent = "";
+    profileModal.hidden = false;
 
-    const initialThread =
-        seed[0] %
-        COVER_THREADS.length;
+    window.setTimeout(() => profileName.focus(), 0);
+}
 
+function closeProfileEditor() {
+    profileModal.hidden = true;
+    editingProfileId = null;
+    profileName.value = "";
+    profileSecret.value = "";
+    profileModalError.hidden = true;
+}
 
-    const initialOffset =
-        seed[1] %
-        COVER_THREADS[
-            initialThread
-        ].length;
+async function saveProfileFromModal() {
+    const name = profileName.value.trim();
+    const secretKey = profileSecret.value;
 
+    profileModalError.hidden = true;
 
-    const output =
-        [];
+    if (!name) {
+        return showProfileModalError("Enter a profile name.");
+    }
 
+    if (!secretKey) {
+        return showProfileModalError("Enter a shared secret key.");
+    }
 
-    let messageNumber =
-        0;
+    if (await isAdminSecret(secretKey)) {
+        return showProfileModalError("This secret key is reserved and cannot be saved as a real profile key.");
+    }
 
+    const duplicate = profiles.find(item =>
+        item.id !== editingProfileId &&
+        item.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0
+    );
 
-    for (
-        const originalLine
-        of lines
-    ) {
+    if (duplicate) {
+        return showProfileModalError("A profile with this name already exists.");
+    }
 
-        if (
-            !originalLine.trim()
-        ) {
+    if (editingProfileId) {
+        const profile = profiles.find(item => item.id === editingProfileId);
 
-            output.push(
-                ""
-            );
-
-            continue;
+        if (!profile) {
+            return showProfileModalError("Profile not found.");
         }
 
+        profile.name = name;
+        profile.secretKey = secretKey;
+        profile.updatedAt = Date.now();
+    } else {
+        const newProfile = {
+            id: makeProfileId(),
+            name,
+            secretKey,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        };
 
-        const absolutePosition =
-            initialOffset +
-            messageNumber;
-
-
-        const threadAdvance =
-            Math.floor(
-                absolutePosition /
-                COVER_THREADS[
-                    initialThread
-                ].length
-            );
-
-
-        const threadIndex =
-
-            (
-                initialThread +
-                threadAdvance
-            ) %
-
-            COVER_THREADS.length;
-
-
-        const thread =
-            COVER_THREADS[
-                threadIndex
-            ];
-
-
-        const lineIndex =
-            absolutePosition %
-            thread.length;
-
-
-        output.push(
-            thread[
-                lineIndex
-            ]
-        );
-
-
-        messageNumber +=
-            1;
+        profiles.push(newProfile);
+        editingProfileId = newProfile.id;
     }
 
+    await persistProfiles();
+    renderProfileSelect();
 
-    return {
+    const savedId = editingProfileId;
+    profileSelect.value = savedId;
 
-        text:
-            output.join(
-                "\n"
-            ),
+    const savedProfile = profiles.find(item => item.id === savedId);
+    password.value = savedProfile?.secretKey || "";
 
-        total:
-            total,
+    if (savedProfile) {
+        localStorage.setItem(ACTIVE_PROFILE_KEY, savedProfile.id);
+    }
 
-        successCount:
-            total,
+    closeProfileEditor();
+    renderManageProfiles();
 
-        errorCount:
-            0
-    };
+    if (savedProfile) {
+        collapseCredentials(savedProfile.name);
+    }
+
+    showToast("Profile saved.");
 }
 
+function showProfileModalError(message) {
+    profileModalError.textContent = message;
+    profileModalError.hidden = false;
+}
 
-// ======================================================
-// BASE64
-// ======================================================
+function openManageProfiles() {
+    renderManageProfiles();
+    manageProfilesModal.hidden = false;
+}
 
-function bytesToBase64(
-    bytes
-) {
+function closeManageProfiles() {
+    manageProfilesModal.hidden = true;
+}
 
-    let binary =
-        "";
+function renderManageProfiles() {
+    profilesList.innerHTML = "";
 
-
-    for (
-        const byte
-        of bytes
-    ) {
-
-        binary +=
-            String.fromCharCode(
-                byte
-            );
+    if (profiles.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "No saved profiles yet.";
+        profilesList.appendChild(empty);
+        return;
     }
 
+    const ordered = [...profiles].sort((a, b) => a.name.localeCompare(b.name));
 
-    return btoa(
-        binary
+    for (const profile of ordered) {
+        const item = document.createElement("div");
+        item.className = "profile-list-item";
+
+        const main = document.createElement("div");
+        main.className = "profile-list-main";
+
+        const name = document.createElement("div");
+        name.className = "profile-list-name";
+        name.textContent = profile.name;
+
+        const subtitle = document.createElement("div");
+        subtitle.className = "profile-list-subtitle";
+        subtitle.textContent = "Encrypted local profile";
+
+        main.append(name, subtitle);
+
+        const actions = document.createElement("div");
+        actions.className = "profile-list-actions";
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "Edit";
+        edit.addEventListener("click", () => {
+            closeManageProfiles();
+            openProfileEditor(profile.id);
+        });
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "delete-profile";
+        remove.textContent = "Delete";
+        remove.addEventListener("click", () => deleteProfile(profile.id));
+
+        actions.append(edit, remove);
+        item.append(main, actions);
+        profilesList.appendChild(item);
+    }
+}
+
+async function deleteProfile(profileId) {
+    const profile = profiles.find(item => item.id === profileId);
+
+    if (!profile) {
+        return;
+    }
+
+    const approved = window.confirm(`Delete profile "${profile.name}"? This cannot be undone.`);
+
+    if (!approved) {
+        return;
+    }
+
+    profiles = profiles.filter(item => item.id !== profileId);
+    await persistProfiles();
+
+    if (profileSelect.value === profileId) {
+        profileSelect.value = "";
+        password.value = "";
+        sessionOverride.hidden = true;
+        localStorage.removeItem(ACTIVE_PROFILE_KEY);
+        expandCredentials();
+    }
+
+    renderProfileSelect();
+    renderManageProfiles();
+    showToast("Profile deleted.");
+}
+
+/* =========================================================
+   Crypto helpers
+   ========================================================= */
+
+async function deriveAesKey(secret, salt) {
+    const baseKey = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(secret),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+    );
+
+    return crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt,
+            iterations: PBKDF2_ITERATIONS,
+            hash: "SHA-256"
+        },
+        baseKey,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"]
     );
 }
 
-
-function base64ToBytes(
-    base64
-) {
-
-    const cleaned =
-        base64
-            .trim()
-            .replace(
-                /\s+/g,
-                ""
-            );
-
-
-    if (
-
-        cleaned.length === 0 ||
-
-        cleaned.length % 4 !== 0 ||
-
-        !/^[A-Za-z0-9+/]*={0,2}$/
-            .test(
-                cleaned
-            )
-
-    ) {
-
-        throw new Error(
-            "Invalid Base64 payload."
-        );
+async function encryptMessage(plaintext, secret) {
+    if (!secret) {
+        throw new Error("Enter a secret key.");
     }
 
+    if (await isAdminSecret(secret)) {
+        throw new Error("This secret key is reserved and cannot encrypt real messages.");
+    }
 
-    let binary;
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+    const key = await deriveAesKey(secret, salt);
 
+    const encrypted = new Uint8Array(await crypto.subtle.encrypt(
+        {
+            name: "AES-GCM",
+            iv,
+            tagLength: GCM_TAG_LENGTH
+        },
+        key,
+        encoder.encode(plaintext)
+    ));
+
+    const payload = new Uint8Array(1 + SALT_LENGTH + IV_LENGTH + encrypted.length);
+    let offset = 0;
+
+    payload[offset] = VERSION;
+    offset += 1;
+
+    payload.set(salt, offset);
+    offset += SALT_LENGTH;
+
+    payload.set(iv, offset);
+    offset += IV_LENGTH;
+
+    payload.set(encrypted, offset);
+
+    return bytesToBase64(payload);
+}
+
+async function decryptMessage(encoded, secret) {
+    if (!secret) {
+        throw new Error("Enter a secret key.");
+    }
+
+    let payload;
 
     try {
-
-        binary =
-            atob(
-                cleaned
-            );
-
+        payload = base64ToBytes(encoded.trim());
     } catch {
-
-        throw new Error(
-            "Invalid Base64 payload."
-        );
+        throw new Error("Invalid Base64 payload.");
     }
 
+    const minimumLength = 1 + SALT_LENGTH + IV_LENGTH + 16;
 
-    const bytes =
-        new Uint8Array(
-            binary.length
-        );
-
-
-    for (
-        let i = 0;
-        i < binary.length;
-        i++
-    ) {
-
-        bytes[i] =
-            binary.charCodeAt(
-                i
-            );
+    if (payload.length < minimumLength) {
+        throw new Error("Invalid or incomplete payload.");
     }
 
+    const version = payload[0];
+
+    if (version !== VERSION) {
+        throw new Error(`Unsupported CipherVault version: ${version}.`);
+    }
+
+    const saltStart = 1;
+    const ivStart = saltStart + SALT_LENGTH;
+    const cipherStart = ivStart + IV_LENGTH;
+
+    const salt = payload.slice(saltStart, ivStart);
+    const iv = payload.slice(ivStart, cipherStart);
+    const ciphertext = payload.slice(cipherStart);
+
+    const key = await deriveAesKey(secret, salt);
+
+    try {
+        const plaintext = await crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv,
+                tagLength: GCM_TAG_LENGTH
+            },
+            key,
+            ciphertext
+        );
+
+        return decoder.decode(plaintext);
+    } catch {
+        throw new Error("Wrong secret key or corrupted message.");
+    }
+}
+
+async function isAdminSecret(secret) {
+    const digest = await crypto.subtle.digest("SHA-256", encoder.encode(secret));
+    return bytesToHex(new Uint8Array(digest)) === ADMIN_KEY_HASH;
+}
+
+async function deterministicDecoy(line, lineIndex, wholeInput) {
+    const seedMaterial = `${wholeInput}\n${lineIndex}\n${line}`;
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(seedMaterial)));
+    const index = ((digest[0] << 8) | digest[1]) % DECOY_MESSAGES.length;
+    return DECOY_MESSAGES[index];
+}
+
+function bytesToHex(bytes) {
+    return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToBase64(bytes) {
+    let binary = "";
+    const chunkSize = 0x8000;
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+
+    return btoa(binary);
+}
+
+function base64ToBytes(value) {
+    const normalized = value.replace(/\s+/g, "");
+
+    if (!normalized) {
+        throw new Error("Empty Base64 payload.");
+    }
+
+    const binary = atob(normalized);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+    }
 
     return bytes;
 }
 
+/* =========================================================
+   Encrypt / Decrypt
+   ========================================================= */
 
-// ======================================================
-// MESSAGE KEY
-// ======================================================
+async function handleEncrypt() {
+    const plaintext = encryptInput.value;
+    const secret = password.value;
 
-async function deriveKey(
-    passwordValue,
-    salt
-) {
-
-    const passwordMaterial =
-        await crypto.subtle.importKey(
-
-            "raw",
-
-            encoder.encode(
-                passwordValue
-            ),
-
-            {
-                name:
-                    "PBKDF2"
-            },
-
-            false,
-
-            [
-                "deriveKey"
-            ]
-        );
-
-
-    return crypto.subtle.deriveKey(
-
-        {
-            name:
-                "PBKDF2",
-
-            salt:
-                salt,
-
-            iterations:
-                PBKDF2_ITERATIONS,
-
-            hash:
-                "SHA-256"
-        },
-
-        passwordMaterial,
-
-        {
-            name:
-                "AES-GCM",
-
-            length:
-                256
-        },
-
-        false,
-
-        [
-            "encrypt",
-            "decrypt"
-        ]
-    );
-}
-
-
-// ======================================================
-// ENCRYPT
-// ======================================================
-
-async function encryptMessage(
-    message,
-    passwordValue
-) {
-
-    if (
-        !message
-    ) {
-
-        throw new Error(
-            "Enter a message to encrypt."
-        );
+    if (!plaintext) {
+        return showToast("Type a message to encrypt.", true);
     }
 
-
-    if (
-        !passwordValue
-    ) {
-
-        throw new Error(
-            "Enter a secret key."
-        );
+    if (plaintext.length > MAX_MESSAGE_LENGTH) {
+        return showToast(`Message is limited to ${MAX_MESSAGE_LENGTH.toLocaleString()} characters.`, true);
     }
 
-
-    if (
-        await usesAlternateRoute(
-            passwordValue
-        )
-    ) {
-
-        throw new Error(
-            "This key is reserved and cannot encrypt messages."
-        );
-    }
-
-
-    const salt =
-        crypto.getRandomValues(
-            new Uint8Array(
-                SALT_LENGTH
-            )
-        );
-
-
-    const iv =
-        crypto.getRandomValues(
-            new Uint8Array(
-                IV_LENGTH
-            )
-        );
-
-
-    const key =
-        await deriveKey(
-            passwordValue,
-            salt
-        );
-
-
-    const encrypted =
-        await crypto.subtle.encrypt(
-
-            {
-                name:
-                    "AES-GCM",
-
-                iv:
-                    iv,
-
-                tagLength:
-                    GCM_TAG_LENGTH
-            },
-
-            key,
-
-            encoder.encode(
-                message
-            )
-        );
-
-
-    const ciphertext =
-        new Uint8Array(
-            encrypted
-        );
-
-
-    const payload =
-        new Uint8Array(
-
-            1 +
-
-            SALT_LENGTH +
-
-            IV_LENGTH +
-
-            ciphertext.length
-        );
-
-
-    let offset =
-        0;
-
-
-    payload[offset] =
-        VERSION;
-
-
-    offset += 1;
-
-
-    payload.set(
-        salt,
-        offset
-    );
-
-
-    offset +=
-        SALT_LENGTH;
-
-
-    payload.set(
-        iv,
-        offset
-    );
-
-
-    offset +=
-        IV_LENGTH;
-
-
-    payload.set(
-        ciphertext,
-        offset
-    );
-
-
-    return bytesToBase64(
-        payload
-    );
-}
-
-
-// ======================================================
-// SINGLE DECRYPT
-// ======================================================
-
-async function decryptMessage(
-    encryptedBase64,
-    passwordValue
-) {
-
-    const payload =
-        base64ToBytes(
-            encryptedBase64
-        );
-
-
-    const minimumLength =
-
-        1 +
-
-        SALT_LENGTH +
-
-        IV_LENGTH +
-
-        16;
-
-
-    if (
-        payload.length <
-        minimumLength
-    ) {
-
-        throw new Error(
-            "Invalid encrypted payload."
-        );
-    }
-
-
-    let offset =
-        0;
-
-
-    const version =
-        payload[offset];
-
-
-    offset +=
-        1;
-
-
-    if (
-        version !== VERSION
-    ) {
-
-        throw new Error(
-            `Unsupported payload version: ${version}`
-        );
-    }
-
-
-    const salt =
-        payload.slice(
-
-            offset,
-
-            offset +
-            SALT_LENGTH
-        );
-
-
-    offset +=
-        SALT_LENGTH;
-
-
-    const iv =
-        payload.slice(
-
-            offset,
-
-            offset +
-            IV_LENGTH
-        );
-
-
-    offset +=
-        IV_LENGTH;
-
-
-    const ciphertext =
-        payload.slice(
-            offset
-        );
-
-
-    const key =
-        await deriveKey(
-            passwordValue,
-            salt
-        );
-
+    setButtonBusy(encryptButton, true, "ENCRYPTING…");
+    encryptStatus.textContent = "";
 
     try {
-
-        const decrypted =
-            await crypto.subtle.decrypt(
-
-                {
-                    name:
-                        "AES-GCM",
-
-                    iv:
-                        iv,
-
-                    tagLength:
-                        GCM_TAG_LENGTH
-                },
-
-                key,
-
-                ciphertext
-            );
-
-
-        return decoder.decode(
-            decrypted
-        );
-
-
-    } catch {
-
-        throw new Error(
-            "Wrong secret key or corrupted message."
-        );
+        const result = await encryptMessage(plaintext, secret);
+        encryptOutput.value = result;
+        encryptResultBlock.hidden = false;
+        copyEncryptButton.disabled = false;
+        encryptStatus.textContent = "Ready";
+    } catch (error) {
+        encryptResultBlock.hidden = true;
+        copyEncryptButton.disabled = true;
+        showToast(error.message || "Encryption failed.", true);
+    } finally {
+        setButtonBusy(encryptButton, false, "ENCRYPT MESSAGE");
     }
 }
 
+async function handleDecrypt() {
+    const input = decryptInput.value;
+    const secret = password.value;
 
-// ======================================================
-// MULTI DECRYPT
-// ======================================================
-
-async function decryptLines(
-    inputValue,
-    passwordValue,
-    progressCallback
-) {
-
-    if (
-        !passwordValue
-    ) {
-
-        throw new Error(
-            "Enter the secret key."
-        );
+    if (!input.trim()) {
+        return showToast("Paste at least one encrypted message.", true);
     }
 
-
-    if (
-        await usesAlternateRoute(
-            passwordValue
-        )
-    ) {
-
-        return createCoverTranscript(
-            inputValue
-        );
+    if (!secret) {
+        return showToast("Enter a secret key.", true);
     }
 
-
-    const lines =
-        inputValue
-            .replace(
-                /\r/g,
-                ""
-            )
-            .split(
-                "\n"
-            );
-
-
-    const total =
-        lines.filter(
-            line =>
-                line
-                    .trim()
-                    .length > 0
-        ).length;
-
-
-    if (
-        total === 0
-    ) {
-
-        throw new Error(
-            "Enter at least one encrypted message."
-        );
-    }
-
-
-    const results =
-        [];
-
-
-    let successCount =
-        0;
-
-    let errorCount =
-        0;
-
-    let processed =
-        0;
-
-
-    for (
-        let index = 0;
-        index < lines.length;
-        index++
-    ) {
-
-        const line =
-            lines[index]
-                .trim();
-
-
-        if (
-            !line
-        ) {
-
-            results.push(
-                ""
-            );
-
-            continue;
-        }
-
-
-        try {
-
-            const decrypted =
-                await decryptMessage(
-
-                    line,
-
-                    passwordValue
-                );
-
-
-            results.push(
-                decrypted
-            );
-
-
-            successCount +=
-                1;
-
-
-        } catch (
-            error
-        ) {
-
-            results.push(
-
-                `[ERROR line ${index + 1}: ${error.message}]`
-
-            );
-
-
-            errorCount +=
-                1;
-        }
-
-
-        processed +=
-            1;
-
-
-        if (
-            progressCallback
-        ) {
-
-            progressCallback(
-                processed,
-                total
-            );
-        }
-    }
-
-
-    return {
-
-        text:
-            results.join(
-                "\n"
-            ),
-
-        total,
-
-        successCount,
-
-        errorCount
-    };
-}
-
-
-// ======================================================
-// PROFILE HELPERS
-// ======================================================
-
-function createId() {
-
-    if (
-        crypto.randomUUID
-    ) {
-
-        return crypto.randomUUID();
-    }
-
-
-    const bytes =
-        crypto.getRandomValues(
-            new Uint8Array(
-                16
-            )
-        );
-
-
-    return Array
-        .from(
-            bytes
-        )
-        .map(
-            value =>
-                value
-                    .toString(
-                        16
-                    )
-                    .padStart(
-                        2,
-                        "0"
-                    )
-        )
-        .join(
-            ""
-        );
-}
-
-
-function getProfile(
-    id
-) {
-
-    return profiles.find(
-        profile =>
-            profile.id === id
-    ) || null;
-}
-
-
-function updateManageButton() {
-
-    manageProfiles.disabled =
-        profiles.length === 0;
-}
-
-
-function refreshProfileSelect(
-    selectedId =
-        activeProfileId
-) {
-
-    profileSelect.innerHTML =
-        "";
-
-
-    const temporaryOption =
-        document.createElement(
-            "option"
-        );
-
-
-    temporaryOption.value =
-        "";
-
-
-    temporaryOption.textContent =
-        "Temporary Session";
-
-
-    profileSelect.appendChild(
-        temporaryOption
-    );
-
-
-    const sorted =
-        [...profiles]
-            .sort(
-                (
-                    a,
-                    b
-                ) =>
-                    a.name.localeCompare(
-                        b.name
-                    )
-            );
-
-
-    for (
-        const profile
-        of sorted
-    ) {
-
-        const option =
-            document.createElement(
-                "option"
-            );
-
-
-        option.value =
-            profile.id;
-
-
-        option.textContent =
-            profile.name;
-
-
-        profileSelect.appendChild(
-            option
-        );
-    }
-
-
-    if (
-        selectedId &&
-        getProfile(
-            selectedId
-        )
-    ) {
-
-        profileSelect.value =
-            selectedId;
-
-    } else {
-
-        profileSelect.value =
-            "";
-    }
-
-
-    updateManageButton();
-}
-
-
-function updateKeySourceHint() {
-
-    const profile =
-        getProfile(
-            activeProfileId
-        );
-
-
-    if (
-        !profile
-    ) {
-
-        keySourceHint.textContent =
-            "TEMPORARY KEY";
-
-        profileStorageHint.textContent =
-            "NOT STORED";
-
-        profileNotice.textContent =
-            "Temporary sessions are not stored.";
-
-        return;
-    }
-
-
-    if (
-        password.value ===
-        profile.secretKey
-    ) {
-
-        keySourceHint.textContent =
-            "PROFILE KEY • STORED LOCALLY";
-
-    } else {
-
-        keySourceHint.textContent =
-            "SESSION OVERRIDE • PROFILE UNCHANGED";
-    }
-
-
-    profileStorageHint.textContent =
-        "ENCRYPTED LOCAL PROFILE";
-
-
-    profileNotice.textContent =
-        `Active profile: ${profile.name}`;
-}
-
-
-function activateProfile(
-    profileId
-) {
-
-    if (
-        !activeProfileId
-    ) {
-
-        temporarySecret =
-            password.value;
-    }
-
-
-    activeProfileId =
-        profileId;
-
-
-    if (
-        !profileId
-    ) {
-
-        password.value =
-            temporarySecret;
-
-
-        localStorage.removeItem(
-            ACTIVE_PROFILE_STORAGE_KEY
-        );
-
-
-        updateKeySourceHint();
-
-        return;
-    }
-
-
-    const profile =
-        getProfile(
-            profileId
-        );
-
-
-    if (
-        !profile
-    ) {
-
-        activeProfileId =
-            "";
-
-        profileSelect.value =
-            "";
-
-        password.value =
-            temporarySecret;
-
-        localStorage.removeItem(
-            ACTIVE_PROFILE_STORAGE_KEY
-        );
-
-        updateKeySourceHint();
-
-        return;
-    }
-
-
-    password.value =
-        profile.secretKey;
-
-
-    localStorage.setItem(
-        ACTIVE_PROFILE_STORAGE_KEY,
-        profile.id
-    );
-
-
-    updateKeySourceHint();
-}
-
-
-// ======================================================
-// PROFILE MODAL
-// ======================================================
-
-function openModal(
-    modal
-) {
-
-    modal.hidden =
-        false;
-
-
-    requestAnimationFrame(
-        () => {
-
-            modal.classList.add(
-                "visible"
-            );
-        }
-    );
-}
-
-
-function closeModal(
-    modal
-) {
-
-    modal.classList.remove(
-        "visible"
-    );
-
-
-    window.setTimeout(
-        () => {
-
-            modal.hidden =
-                true;
-
-        },
-
-        180
-    );
-}
-
-
-function openProfileForm(
-    profile =
-        null
-) {
-
-    editingProfileId =
-        profile
-            ? profile.id
-            : null;
-
-
-    profileModalTitle.textContent =
-        profile
-            ? "Edit Profile"
-            : "New Profile";
-
-
-    profileName.value =
-        profile
-            ? profile.name
-            : "";
-
-
-    profileSecret.value =
-        profile
-            ? profile.secretKey
-            : "";
-
-
-    profileSecret.type =
-        "password";
-
-
-    toggleProfileSecret.textContent =
-        "◉";
-
-
-    profileFormError.textContent =
-        "";
-
-
-    openModal(
-        profileModal
-    );
-
-
-    window.setTimeout(
-        () => {
-
-            profileName.focus();
-
-        },
-
-        50
-    );
-}
-
-
-function renderProfilesList() {
-
-    profilesList.innerHTML =
-        "";
-
-
-    if (
-        profiles.length === 0
-    ) {
-
-        const empty =
-            document.createElement(
-                "div"
-            );
-
-
-        empty.className =
-            "empty-profiles";
-
-
-        empty.textContent =
-            "No saved profiles.";
-
-
-        profilesList.appendChild(
-            empty
-        );
-
-
-        return;
-    }
-
-
-    const sorted =
-        [...profiles]
-            .sort(
-                (
-                    a,
-                    b
-                ) =>
-                    a.name.localeCompare(
-                        b.name
-                    )
-            );
-
-
-    for (
-        const profile
-        of sorted
-    ) {
-
-        const item =
-            document.createElement(
-                "div"
-            );
-
-
-        item.className =
-            "profile-list-item";
-
-
-        const info =
-            document.createElement(
-                "div"
-            );
-
-
-        info.className =
-            "profile-list-info";
-
-
-        const title =
-            document.createElement(
-                "strong"
-            );
-
-
-        title.textContent =
-            profile.name;
-
-
-        const status =
-            document.createElement(
-                "span"
-            );
-
-
-        status.textContent =
-            profile.id === activeProfileId
-                ? "ACTIVE PROFILE"
-                : "SECRET CONFIGURED";
-
-
-        info.append(
-            title,
-            status
-        );
-
-
-        const actions =
-            document.createElement(
-                "div"
-            );
-
-
-        actions.className =
-            "profile-list-actions";
-
-
-        const editButton =
-            document.createElement(
-                "button"
-            );
-
-
-        editButton.className =
-            "profile-mini-button";
-
-
-        editButton.type =
-            "button";
-
-
-        editButton.textContent =
-            "EDIT";
-
-
-        editButton.addEventListener(
-            "click",
-            () => {
-
-                closeModal(
-                    manageModal
-                );
-
-
-                window.setTimeout(
-                    () => {
-
-                        openProfileForm(
-                            profile
-                        );
-
-                    },
-
-                    190
-                );
+    setButtonBusy(decryptButton, true, "DECRYPTING…");
+    decryptStatus.textContent = "";
+
+    try {
+        const lines = input.split(/\r?\n/);
+        const decoyMode = await isAdminSecret(secret);
+        let failures = 0;
+
+        const outputLines = [];
+
+        for (let index = 0; index < lines.length; index += 1) {
+            const originalLine = lines[index];
+            const trimmed = originalLine.trim();
+
+            if (!trimmed) {
+                outputLines.push("");
+                continue;
             }
-        );
 
-
-        const deleteButton =
-            document.createElement(
-                "button"
-            );
-
-
-        deleteButton.className =
-            "profile-mini-button delete";
-
-
-        deleteButton.type =
-            "button";
-
-
-        deleteButton.textContent =
-            "DELETE";
-
-
-        deleteButton.addEventListener(
-            "click",
-            () => {
-
-                openConfirmation(
-
-                    `Delete ${profile.name}?`,
-
-                    "This permanently removes the locally stored profile and its secret key.",
-
-                    "DELETE",
-
-                    async () => {
-
-                        profiles =
-                            profiles.filter(
-                                item =>
-                                    item.id !==
-                                    profile.id
-                            );
-
-
-                        if (
-                            activeProfileId ===
-                            profile.id
-                        ) {
-
-                            activeProfileId =
-                                "";
-
-                            password.value =
-                                temporarySecret;
-
-                            localStorage.removeItem(
-                                ACTIVE_PROFILE_STORAGE_KEY
-                            );
-                        }
-
-
-                        await persistProfiles();
-
-
-                        refreshProfileSelect(
-                            activeProfileId
-                        );
-
-
-                        renderProfilesList();
-
-
-                        updateKeySourceHint();
-                    }
-                );
+            if (decoyMode) {
+                outputLines.push(await deterministicDecoy(trimmed, index, input));
+                continue;
             }
-        );
 
-
-        actions.append(
-            editButton,
-            deleteButton
-        );
-
-
-        item.append(
-            info,
-            actions
-        );
-
-
-        profilesList.appendChild(
-            item
-        );
-    }
-}
-
-
-// ======================================================
-// CONFIRMATION
-// ======================================================
-
-function openConfirmation(
-    title,
-    message,
-    actionLabel,
-    callback
-) {
-
-    pendingConfirmation =
-        callback;
-
-
-    confirmTitle.textContent =
-        title;
-
-
-    confirmMessage.textContent =
-        message;
-
-
-    acceptConfirm.textContent =
-        actionLabel;
-
-
-    openModal(
-        confirmModal
-    );
-
-
-    window.setTimeout(
-        () => {
-
-            cancelConfirm.focus();
-
-        },
-
-        50
-    );
-}
-
-
-function closeConfirmation() {
-
-    pendingConfirmation =
-        null;
-
-
-    closeModal(
-        confirmModal
-    );
-}
-
-
-// ======================================================
-// STATUS
-// ======================================================
-
-function setPanelStatus(
-    container,
-    textElement,
-    type,
-    message
-) {
-
-    container.className =
-        "status-container";
-
-
-    if (
-        type &&
-        type !== "ready"
-    ) {
-
-        container.classList.add(
-            type
-        );
-    }
-
-
-    textElement.textContent =
-        message.toUpperCase();
-}
-
-
-// ======================================================
-// BUTTON STATE
-// ======================================================
-
-function setButtonProcessing(
-    button,
-    textElement,
-    iconElement,
-    message
-) {
-
-    button.classList.remove(
-        "success"
-    );
-
-
-    button.classList.add(
-        "processing"
-    );
-
-
-    iconElement.textContent =
-        "◌";
-
-
-    textElement.textContent =
-        message;
-}
-
-
-function finishButtonSuccess(
-    button,
-    textElement,
-    iconElement,
-    successText,
-    idleText,
-    idleIcon
-) {
-
-    button.classList.remove(
-        "processing"
-    );
-
-
-    button.classList.add(
-        "success"
-    );
-
-
-    iconElement.textContent =
-        "✓";
-
-
-    textElement.textContent =
-        successText;
-
-
-    window.setTimeout(
-        () => {
-
-            button.classList.remove(
-                "success"
-            );
-
-
-            iconElement.textContent =
-                idleIcon;
-
-
-            textElement.textContent =
-                idleText;
-
-        },
-
-        850
-    );
-}
-
-
-function resetButton(
-    button,
-    textElement,
-    iconElement,
-    idleText,
-    idleIcon
-) {
-
-    button.classList.remove(
-        "processing",
-        "success"
-    );
-
-
-    iconElement.textContent =
-        idleIcon;
-
-
-    textElement.textContent =
-        idleText;
-}
-
-
-// ======================================================
-// THEME
-// ======================================================
-
-function applyTheme(
-    theme
-) {
-
-    document
-        .documentElement
-        .dataset
-        .theme =
-            theme;
-
-
-    themeIcon.textContent =
-        theme === "dark"
-            ? "☾"
-            : "☀";
-}
-
-
-function loadTheme() {
-
-    const saved =
-        localStorage.getItem(
-            THEME_STORAGE_KEY
-        );
-
-
-    if (
-        saved === "dark" ||
-        saved === "light"
-    ) {
-
-        applyTheme(
-            saved
-        );
-
-        return;
-    }
-
-
-    const prefersDark =
-        window.matchMedia(
-            "(prefers-color-scheme: dark)"
-        ).matches;
-
-
-    applyTheme(
-        prefersDark
-            ? "dark"
-            : "light"
-    );
-}
-
-
-// ======================================================
-// COUNTERS
-// ======================================================
-
-function updateEncryptCounter() {
-
-    const count =
-        encryptInput
-            .value
-            .length;
-
-
-    encryptCounter.textContent =
-        `${count} ${
-            count === 1
-                ? "char"
-                : "chars"
-        }`;
-}
-
-
-function updateDecryptCounter() {
-
-    const count =
-        decryptInput
-            .value
-            .replace(
-                /\r/g,
-                ""
-            )
-            .split(
-                "\n"
-            )
-            .filter(
-                line =>
-                    line.trim().length > 0
-            )
-            .length;
-
-
-    decryptCounter.textContent =
-        `${count} ${
-            count === 1
-                ? "message"
-                : "messages"
-        }`;
-}
-
-
-// ======================================================
-// MOBILE
-// ======================================================
-
-function setMobileMode(
-    mode
-) {
-
-    const encryptActive =
-        mode === "encrypt";
-
-
-    encryptPanel.classList.toggle(
-        "active-mobile",
-        encryptActive
-    );
-
-
-    decryptPanel.classList.toggle(
-        "active-mobile",
-        !encryptActive
-    );
-
-
-    mobileEncrypt.classList.toggle(
-        "active",
-        encryptActive
-    );
-
-
-    mobileDecrypt.classList.toggle(
-        "active",
-        !encryptActive
-    );
-}
-
-
-// ======================================================
-// CLIPBOARD
-// ======================================================
-
-async function writeClipboard(
-    text
-) {
-
-    if (
-        navigator.clipboard &&
-        window.isSecureContext
-    ) {
-
-        await navigator
-            .clipboard
-            .writeText(
-                text
-            );
-
-
-        return;
-    }
-
-
-    const helper =
-        document.createElement(
-            "textarea"
-        );
-
-
-    helper.value =
-        text;
-
-
-    helper.style.position =
-        "fixed";
-
-
-    helper.style.opacity =
-        "0";
-
-
-    document.body.appendChild(
-        helper
-    );
-
-
-    helper.select();
-
-
-    const copied =
-        document.execCommand(
-            "copy"
-        );
-
-
-    helper.remove();
-
-
-    if (
-        !copied
-    ) {
-
-        throw new Error(
-            "Could not copy to clipboard."
-        );
-    }
-}
-
-
-function showCopiedFeedback(
-    button,
-    output
-) {
-
-    if (
-        button._copyTimer
-    ) {
-
-        clearTimeout(
-            button._copyTimer
-        );
-    }
-
-
-    button.classList.add(
-        "copied"
-    );
-
-
-    button.textContent =
-        "✓ COPIED";
-
-
-    output.classList.remove(
-        "copy-flash"
-    );
-
-
-    void output.offsetWidth;
-
-
-    output.classList.add(
-        "copy-flash"
-    );
-
-
-    button._copyTimer =
-        window.setTimeout(
-            () => {
-
-                button.classList.remove(
-                    "copied"
-                );
-
-
-                button.textContent =
-                    "COPY";
-
-
-                output.classList.remove(
-                    "copy-flash"
-                );
-
-            },
-
-            1300
-        );
-}
-
-
-async function copyOutput(
-    button,
-    output,
-    statusContainer,
-    statusElement
-) {
-
-    if (
-        !output.value
-    ) {
-
-        setPanelStatus(
-
-            statusContainer,
-
-            statusElement,
-
-            "error",
-
-            "Nothing to copy."
-
-        );
-
-
-        return;
-    }
-
-
-    try {
-
-        await writeClipboard(
-            output.value
-        );
-
-
-        showCopiedFeedback(
-            button,
-            output
-        );
-
-
-        setPanelStatus(
-
-            statusContainer,
-
-            statusElement,
-
-            "success",
-
-            "Copied to clipboard."
-
-        );
-
-
-    } catch (
-        error
-    ) {
-
-        setPanelStatus(
-
-            statusContainer,
-
-            statusElement,
-
-            "error",
-
-            error.message
-        );
-    }
-}
-
-
-// ======================================================
-// EXTENSION MODE
-// ======================================================
-
-function detectExtensionMode() {
-
-    try {
-
-        const chromeExtension =
-
-            typeof chrome !==
-            "undefined" &&
-
-            chrome.runtime &&
-
-            chrome.runtime.id;
-
-
-        const browserExtension =
-
-            typeof browser !==
-            "undefined" &&
-
-            browser.runtime &&
-
-            browser.runtime.id;
-
-
-        if (
-            chromeExtension ||
-            browserExtension
-        ) {
-
-            document
-                .documentElement
-                .classList
-                .add(
-                    "extension-mode"
-                );
+            try {
+                outputLines.push(await decryptMessage(trimmed, secret));
+            } catch (error) {
+                failures += 1;
+                outputLines.push(`[ERROR line ${index + 1}: ${error.message}]`);
+            }
         }
 
-
-    } catch {
-
-        // Normal webpage.
-
+        decryptOutput.value = outputLines.join("\n");
+        decryptResultBlock.hidden = false;
+        copyDecryptButton.disabled = false;
+        decryptStatus.textContent = failures ? `${failures} failed` : "Ready";
+    } catch (error) {
+        decryptResultBlock.hidden = true;
+        copyDecryptButton.disabled = true;
+        showToast(error.message || "Decryption failed.", true);
+    } finally {
+        setButtonBusy(decryptButton, false, "DECRYPT MESSAGE(S)");
     }
 }
 
+function setButtonBusy(button, busy, label) {
+    button.disabled = busy;
+    button.dataset.normalHtml ??= button.innerHTML;
 
-// ======================================================
-// CLEAR PANELS
-// ======================================================
+    if (busy) {
+        button.textContent = label;
+        return;
+    }
+
+    button.innerHTML = button.dataset.normalHtml;
+}
+
+/* =========================================================
+   Counts / mode switching
+   ========================================================= */
+
+function updateEncryptCount() {
+    encryptCount.textContent = `${encryptInput.value.length.toLocaleString()}/${MAX_MESSAGE_LENGTH.toLocaleString()}`;
+}
+
+function updateDecryptCount() {
+    const count = decryptInput.value
+        .split(/\r?\n/)
+        .filter(line => line.trim().length > 0)
+        .length;
+
+    decryptCount.textContent = `${count} ${count === 1 ? "message" : "messages"}`;
+}
+
+function setMobileMode(mode) {
+    for (const button of modeButtons) {
+        button.classList.toggle("active", button.dataset.mode === mode);
+    }
+
+    for (const panel of cipherPanels) {
+        panel.classList.toggle("active-mobile", panel.dataset.panel === mode);
+    }
+}
+
+/* =========================================================
+   Copy / Clear
+   ========================================================= */
+
+async function copyText(text, button, outputElement) {
+    if (!text) {
+        return;
+    }
+
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            fallbackCopy(text);
+        }
+
+        const oldText = button.textContent;
+        button.textContent = "✓ COPIED";
+        button.classList.add("copied");
+        outputElement?.classList.add("copy-flash");
+
+        window.setTimeout(() => {
+            button.textContent = oldText;
+            button.classList.remove("copied");
+            outputElement?.classList.remove("copy-flash");
+        }, 1200);
+    } catch {
+        fallbackCopy(text);
+        showToast("Copied.");
+    }
+}
+
+function fallbackCopy(text) {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+}
+
+function openClearConfirmation(target) {
+    clearTarget = target;
+    const isEncrypt = target === "encrypt";
+
+    clearModalTitle.textContent = isEncrypt ? "Clear Encrypt panel?" : "Clear Decrypt panel?";
+    clearModalText.textContent = "This clears only this panel. Your shared secret key and saved profiles are retained.";
+    clearModal.hidden = false;
+}
+
+function closeClearConfirmation() {
+    clearModal.hidden = true;
+    clearTarget = null;
+}
+
+function confirmClearPanel() {
+    if (clearTarget === "encrypt") {
+        clearEncryptPanel();
+    } else if (clearTarget === "decrypt") {
+        clearDecryptPanel();
+    }
+
+    closeClearConfirmation();
+}
 
 function clearEncryptPanel() {
-
-    encryptInput.value =
-        "";
-
-
-    encryptOutput.value =
-        "";
-
-
-    updateEncryptCounter();
-
-
-    resetButton(
-
-        encryptButton,
-
-        encryptButtonText,
-
-        encryptIcon,
-
-        "ENCRYPT MESSAGE",
-
-        "◇"
-    );
-
-
-    setPanelStatus(
-
-        encryptStatusContainer,
-
-        encryptStatus,
-
-        "ready",
-
-        "Ready"
-    );
-
-
-    encryptInput.focus();
+    encryptInput.value = "";
+    encryptOutput.value = "";
+    encryptStatus.textContent = "";
+    encryptResultBlock.hidden = true;
+    copyEncryptButton.disabled = true;
+    updateEncryptCount();
 }
-
 
 function clearDecryptPanel() {
-
-    decryptInput.value =
-        "";
-
-
-    decryptOutput.value =
-        "";
-
-
-    updateDecryptCounter();
-
-
-    resetButton(
-
-        decryptButton,
-
-        decryptButtonText,
-
-        decryptIcon,
-
-        "DECRYPT MESSAGES",
-
-        "◆"
-    );
-
-
-    setPanelStatus(
-
-        decryptStatusContainer,
-
-        decryptStatus,
-
-        "ready",
-
-        "Ready"
-    );
-
-
-    decryptInput.focus();
+    decryptInput.value = "";
+    decryptOutput.value = "";
+    decryptStatus.textContent = "";
+    decryptResultBlock.hidden = true;
+    copyDecryptButton.disabled = true;
+    updateDecryptCount();
 }
 
+/* =========================================================
+   Eject
+   First press clears the visible session immediately.
+   Continuing to hold for 900 ms deletes saved CipherVault credentials.
+   ========================================================= */
 
-// ======================================================
-// EJECT
-// ======================================================
+function clearVisibleSession() {
+    password.value = "";
+    profileSelect.value = "";
+    sessionOverride.hidden = true;
+    localStorage.removeItem(ACTIVE_PROFILE_KEY);
 
-async function deleteVaultDatabase() {
+    clearEncryptPanel();
+    clearDecryptPanel();
+    setMobileMode("encrypt");
+    expandCredentials();
 
-    try {
+    profileModal.hidden = true;
+    manageProfilesModal.hidden = true;
+    clearModal.hidden = true;
 
-        if (
-            databasePromise
-        ) {
+    document.body.classList.add("panic-cleared");
 
-            const db =
-                await databasePromise;
-
-
-            db.close();
-        }
-
-    } catch {
-
-        // Continue with deletion.
-
-    }
-
-
-    databasePromise =
-        null;
-
-
-    return new Promise(
-        resolve => {
-
-            const request =
-                indexedDB.deleteDatabase(
-                    DB_NAME
-                );
-
-
-            request.onsuccess =
-                () => resolve();
-
-
-            request.onerror =
-                () => resolve();
-
-
-            request.onblocked =
-                () => resolve();
-
-        }
-    );
+    window.setTimeout(() => {
+        document.body.classList.remove("panic-cleared");
+    }, 250);
 }
 
-
-function removeCipherVaultLocalStorage() {
-
-    const keys =
-        [];
-
-
-    for (
-        let i = 0;
-        i < localStorage.length;
-        i++
-    ) {
-
-        const key =
-            localStorage.key(
-                i
-            );
-
-
-        if (
-            key &&
-            key.startsWith(
-                "ciphervault-"
-            )
-        ) {
-
-            keys.push(
-                key
-            );
-        }
-    }
-
-
-    for (
-        const key
-        of keys
-    ) {
-
-        localStorage.removeItem(
-            key
-        );
-    }
-}
-
-
-async function executeEject() {
-
-    if (
-        ejectTriggered
-    ) {
-
+function beginEjectHold(event) {
+    if (event.type === "pointerdown" && event.button !== 0) {
         return;
     }
 
-
-    ejectTriggered =
-        true;
-
-
-    ejectOverlay.hidden =
-        false;
-
-
-    password.value =
-        "";
-
-    temporarySecret =
-        "";
-
-    encryptInput.value =
-        "";
-
-    encryptOutput.value =
-        "";
-
-    decryptInput.value =
-        "";
-
-    decryptOutput.value =
-        "";
-
-    profiles =
-        [];
-
-    activeProfileId =
-        "";
-
-
-    removeCipherVaultLocalStorage();
-
-
-    try {
-
-        await deleteVaultDatabase();
-
-    } catch {
-
-        // Redirect even if browser storage deletion fails.
-
-    }
-
-
-    const destination =
-        "https://github.com/";
-
-
-    const extensionMode =
-        document
-            .documentElement
-            .classList
-            .contains(
-                "extension-mode"
-            );
-
-
-    if (
-        extensionMode
-    ) {
-
-        window.open(
-            destination,
-            "_blank"
-        );
-
-
-        window.close();
-
-    } else {
-
-        window.location.replace(
-            destination
-        );
-    }
-}
-
-
-function beginEject(
-    event
-) {
-
-    if (
-        ejectTriggered
-    ) {
-
+    if (ejectHoldTimer || ejectCommitted) {
         return;
     }
 
-
-    event.preventDefault();
-
-
-    ejectButton.classList.add(
-        "arming"
-    );
-
-
-    ejectTimer =
-        window.setTimeout(
-            executeEject,
-            900
-        );
-}
-
-
-function cancelEject() {
-
-    if (
-        ejectTriggered
-    ) {
-
-        return;
-    }
-
-
-    if (
-        ejectTimer
-    ) {
-
-        clearTimeout(
-            ejectTimer
-        );
-
-
-        ejectTimer =
-            null;
-    }
-
-
-    ejectButton.classList.remove(
-        "arming"
-    );
-}
-
-
-// ======================================================
-// EVENTS — THEME
-// ======================================================
-
-themeToggle.addEventListener(
-    "click",
-    () => {
-
-        const current =
-            document
-                .documentElement
-                .dataset
-                .theme;
-
-
-        const next =
-            current === "dark"
-                ? "light"
-                : "dark";
-
-
-        applyTheme(
-            next
-        );
-
-
-        localStorage.setItem(
-            THEME_STORAGE_KEY,
-            next
-        );
-    }
-);
-
-
-// ======================================================
-// EVENTS — PROFILE
-// ======================================================
-
-profileSelect.addEventListener(
-    "change",
-    () => {
-
-        const nextId =
-            profileSelect.value;
-
-
-        activateProfile(
-            nextId
-        );
-    }
-);
-
-
-password.addEventListener(
-    "input",
-    updateKeySourceHint
-);
-
-
-addProfile.addEventListener(
-    "click",
-    () => {
-
-        openProfileForm();
-    }
-);
-
-
-manageProfiles.addEventListener(
-    "click",
-    () => {
-
-        renderProfilesList();
-
-        openModal(
-            manageModal
-        );
-    }
-);
-
-
-closeManage.addEventListener(
-    "click",
-    () => {
-
-        closeModal(
-            manageModal
-        );
-    }
-);
-
-
-cancelProfile.addEventListener(
-    "click",
-    () => {
-
-        closeModal(
-            profileModal
-        );
-    }
-);
-
-
-toggleProfileSecret.addEventListener(
-    "click",
-    () => {
-
-        const visible =
-            profileSecret.type ===
-            "text";
-
-
-        profileSecret.type =
-            visible
-                ? "password"
-                : "text";
-
-
-        toggleProfileSecret.textContent =
-            visible
-                ? "◉"
-                : "◎";
-
-
-        profileSecret.focus();
-    }
-);
-
-
-profileForm.addEventListener(
-    "submit",
-    async event => {
-
-        event.preventDefault();
-
-
-        const name =
-            profileName
-                .value
-                .trim();
-
-
-        const secret =
-            profileSecret
-                .value;
-
-
-        profileFormError.textContent =
-            "";
-
-
-        if (
-            !name
-        ) {
-
-            profileFormError.textContent =
-                "Enter a profile name.";
-
-            return;
-        }
-
-
-        if (
-            !secret
-        ) {
-
-            profileFormError.textContent =
-                "Enter a secret key.";
-
-            return;
-        }
-
-
-        if (
-            await usesAlternateRoute(
-                secret
-            )
-        ) {
-
-            profileFormError.textContent =
-                "This key is reserved by CipherVault.";
-
-            return;
-        }
-
-
-        const duplicate =
-            profiles.find(
-                profile =>
-                    profile
-                        .name
-                        .toLowerCase() ===
-                        name
-                            .toLowerCase() &&
-
-                    profile.id !==
-                        editingProfileId
-            );
-
-
-        if (
-            duplicate
-        ) {
-
-            profileFormError.textContent =
-                "A profile with this name already exists.";
-
-            return;
-        }
-
-
-        if (
-            editingProfileId
-        ) {
-
-            const profile =
-                getProfile(
-                    editingProfileId
-                );
-
-
-            if (
-                profile
-            ) {
-
-                profile.name =
-                    name;
-
-
-                profile.secretKey =
-                    secret;
-            }
-
-
-        } else {
-
-            const newProfile =
-                {
-                    id:
-                        createId(),
-
-                    name:
-                        name,
-
-                    secretKey:
-                        secret
-                };
-
-
-            profiles.push(
-                newProfile
-            );
-
-
-            activeProfileId =
-                newProfile.id;
-        }
-
-
-        await persistProfiles();
-
-
-        if (
-            editingProfileId &&
-            activeProfileId ===
-            editingProfileId
-        ) {
-
-            const edited =
-                getProfile(
-                    editingProfileId
-                );
-
-
-            if (
-                edited
-            ) {
-
-                password.value =
-                    edited.secretKey;
-            }
-        }
-
-
-        if (
-            !editingProfileId
-        ) {
-
-            const active =
-                getProfile(
-                    activeProfileId
-                );
-
-
-            if (
-                active
-            ) {
-
-                password.value =
-                    active.secretKey;
-
-
-                localStorage.setItem(
-                    ACTIVE_PROFILE_STORAGE_KEY,
-                    active.id
-                );
-            }
-        }
-
-
-        refreshProfileSelect(
-            activeProfileId
-        );
-
-
-        updateKeySourceHint();
-
-
-        closeModal(
-            profileModal
-        );
-
-
-        editingProfileId =
-            null;
-    }
-);
-
-
-// ======================================================
-// EVENTS — PASSWORD VISIBILITY
-// ======================================================
-
-togglePassword.addEventListener(
-    "click",
-    () => {
-
-        const visible =
-            password.type ===
-            "text";
-
-
-        password.type =
-            visible
-                ? "password"
-                : "text";
-
-
-        togglePassword.textContent =
-            visible
-                ? "◉"
-                : "◎";
-
-
-        password.focus();
-    }
-);
-
-
-// ======================================================
-// EVENTS — COUNTERS
-// ======================================================
-
-encryptInput.addEventListener(
-    "input",
-    updateEncryptCounter
-);
-
-
-decryptInput.addEventListener(
-    "input",
-    updateDecryptCounter
-);
-
-
-// ======================================================
-// EVENTS — MOBILE
-// ======================================================
-
-mobileEncrypt.addEventListener(
-    "click",
-    () => {
-
-        setMobileMode(
-            "encrypt"
-        );
-    }
-);
-
-
-mobileDecrypt.addEventListener(
-    "click",
-    () => {
-
-        setMobileMode(
-            "decrypt"
-        );
-    }
-);
-
-
-// ======================================================
-// EVENTS — ENCRYPT
-// ======================================================
-
-encryptButton.addEventListener(
-    "click",
-    async () => {
-
-        if (
-            encryptButton
-                .classList
-                .contains(
-                    "processing"
-                )
-        ) {
-
-            return;
-        }
-
-
-        encryptOutput.value =
-            "";
-
-
-        setButtonProcessing(
-
-            encryptButton,
-
-            encryptButtonText,
-
-            encryptIcon,
-
-            "ENCRYPTING..."
-        );
-
-
-        setPanelStatus(
-
-            encryptStatusContainer,
-
-            encryptStatus,
-
-            "processing",
-
-            "Deriving key and encrypting."
-        );
-
+    clearVisibleSession();
+    ejectButton.classList.add("eject-holding");
+
+    ejectHoldTimer = window.setTimeout(async () => {
+        ejectHoldTimer = null;
+        ejectCommitted = true;
+        ejectButton.classList.remove("eject-holding");
+        ejectButton.classList.add("eject-triggered");
 
         try {
-
-            encryptOutput.value =
-                await encryptMessage(
-
-                    encryptInput.value,
-
-                    password.value
-                );
-
-
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "success",
-
-                "Encryption complete."
-            );
-
-
-            finishButtonSuccess(
-
-                encryptButton,
-
-                encryptButtonText,
-
-                encryptIcon,
-
-                "ENCRYPTED",
-
-                "ENCRYPT MESSAGE",
-
-                "◇"
-            );
-
-
-        } catch (
-            error
-        ) {
-
-            resetButton(
-
-                encryptButton,
-
-                encryptButtonText,
-
-                encryptIcon,
-
-                "ENCRYPT MESSAGE",
-
-                "◇"
-            );
-
-
-            setPanelStatus(
-
-                encryptStatusContainer,
-
-                encryptStatus,
-
-                "error",
-
-                error.message
-            );
+            await destroyCipherVaultData();
+        } finally {
+            await leaveCipherVault();
         }
-    }
-);
-
-
-// ======================================================
-// EVENTS — DECRYPT
-// ======================================================
-
-decryptButton.addEventListener(
-    "click",
-    async () => {
-
-        if (
-            decryptButton
-                .classList
-                .contains(
-                    "processing"
-                )
-        ) {
-
-            return;
-        }
-
-
-        decryptOutput.value =
-            "";
-
-
-        setButtonProcessing(
-
-            decryptButton,
-
-            decryptButtonText,
-
-            decryptIcon,
-
-            "DECRYPTING..."
-        );
-
-
-        setPanelStatus(
-
-            decryptStatusContainer,
-
-            decryptStatus,
-
-            "processing",
-
-            "Preparing messages..."
-        );
-
-
-        try {
-
-            const alternate =
-                await usesAlternateRoute(
-                    password.value
-                );
-
-
-            const result =
-                await decryptLines(
-
-                    decryptInput.value,
-
-                    password.value,
-
-                    (
-                        processed,
-                        total
-                    ) => {
-
-                        setPanelStatus(
-
-                            decryptStatusContainer,
-
-                            decryptStatus,
-
-                            "processing",
-
-                            `Decrypting ${processed}/${total} messages`
-                        );
-                    }
-                );
-
-
-            /*
-                Keep visible behaviour identical for
-                normal and alternate output paths.
-            */
-
-            decryptOutput.value =
-                result.text;
-
-
-            if (
-                result.errorCount === 0
-            ) {
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "success",
-
-                    `${result.successCount}/${result.total} messages decrypted.`
-                );
-
-
-            } else {
-
-                setPanelStatus(
-
-                    decryptStatusContainer,
-
-                    decryptStatus,
-
-                    "warning",
-
-                    `${result.successCount}/${result.total} decrypted, ${result.errorCount} failed.`
-                );
-            }
-
-
-            /*
-                Prevent compiler/linter warnings while
-                intentionally keeping the UI identical.
-            */
-
-            void alternate;
-
-
-            finishButtonSuccess(
-
-                decryptButton,
-
-                decryptButtonText,
-
-                decryptIcon,
-
-                "DECRYPTED",
-
-                "DECRYPT MESSAGES",
-
-                "◆"
-            );
-
-
-        } catch (
-            error
-        ) {
-
-            resetButton(
-
-                decryptButton,
-
-                decryptButtonText,
-
-                decryptIcon,
-
-                "DECRYPT MESSAGES",
-
-                "◆"
-            );
-
-
-            setPanelStatus(
-
-                decryptStatusContainer,
-
-                decryptStatus,
-
-                "error",
-
-                error.message
-            );
-        }
-    }
-);
-
-
-// ======================================================
-// EVENTS — COPY
-// ======================================================
-
-copyEncrypted.addEventListener(
-    "click",
-    () => {
-
-        copyOutput(
-
-            copyEncrypted,
-
-            encryptOutput,
-
-            encryptStatusContainer,
-
-            encryptStatus
-        );
-    }
-);
-
-
-copyDecrypted.addEventListener(
-    "click",
-    () => {
-
-        copyOutput(
-
-            copyDecrypted,
-
-            decryptOutput,
-
-            decryptStatusContainer,
-
-            decryptStatus
-        );
-    }
-);
-
-
-// ======================================================
-// EVENTS — CLEAR
-// ======================================================
-
-clearEncrypt.addEventListener(
-    "click",
-    () => {
-
-        if (
-            !encryptInput.value &&
-            !encryptOutput.value
-        ) {
-
-            return;
-        }
-
-
-        openConfirmation(
-
-            "Clear Encrypt panel?",
-
-            "The original message and encrypted output will be removed. Profiles and secret keys will not be changed.",
-
-            "CLEAR",
-
-            clearEncryptPanel
-        );
-    }
-);
-
-
-clearDecrypt.addEventListener(
-    "click",
-    () => {
-
-        if (
-            !decryptInput.value &&
-            !decryptOutput.value
-        ) {
-
-            return;
-        }
-
-
-        openConfirmation(
-
-            "Clear Decrypt panel?",
-
-            "All encrypted messages and decrypted results in this panel will be removed. Profiles and secret keys will not be changed.",
-
-            "CLEAR",
-
-            clearDecryptPanel
-        );
-    }
-);
-
-
-// ======================================================
-// EVENTS — CONFIRM
-// ======================================================
-
-cancelConfirm.addEventListener(
-    "click",
-    closeConfirmation
-);
-
-
-acceptConfirm.addEventListener(
-    "click",
-    async () => {
-
-        const action =
-            pendingConfirmation;
-
-
-        pendingConfirmation =
-            null;
-
-
-        closeModal(
-            confirmModal
-        );
-
-
-        if (
-            action
-        ) {
-
-            await action();
-        }
-    }
-);
-
-
-// ======================================================
-// EVENTS — MODAL BACKDROP
-// ======================================================
-
-[
-    profileModal,
-    manageModal,
-    confirmModal
-
-].forEach(
-    modal => {
-
-        modal.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target !==
-                    modal
-                ) {
-
-                    return;
-                }
-
-
-                if (
-                    modal ===
-                    confirmModal
-                ) {
-
-                    closeConfirmation();
-
-                } else {
-
-                    closeModal(
-                        modal
-                    );
-                }
-            }
-        );
-
-    }
-);
-
-
-// ======================================================
-// EVENTS — EJECT
-// ======================================================
-
-ejectButton.addEventListener(
-    "pointerdown",
-    beginEject
-);
-
-
-ejectButton.addEventListener(
-    "pointerup",
-    cancelEject
-);
-
-
-ejectButton.addEventListener(
-    "pointercancel",
-    cancelEject
-);
-
-
-ejectButton.addEventListener(
-    "pointerleave",
-    cancelEject
-);
-
-
-// ======================================================
-// KEYBOARD
-// ======================================================
-
-document.addEventListener(
-    "keydown",
-    event => {
-
-        if (
-            event.key ===
-            "Escape"
-        ) {
-
-            if (
-                !confirmModal.hidden
-            ) {
-
-                closeConfirmation();
-
-                return;
-            }
-
-
-            if (
-                !profileModal.hidden
-            ) {
-
-                closeModal(
-                    profileModal
-                );
-
-                return;
-            }
-
-
-            if (
-                !manageModal.hidden
-            ) {
-
-                closeModal(
-                    manageModal
-                );
-
-                return;
-            }
-        }
-
-
-        if (
-
-            !event.ctrlKey ||
-
-            event.key !==
-            "Enter"
-
-        ) {
-
-            return;
-        }
-
-
-        event.preventDefault();
-
-
-        if (
-            document.activeElement ===
-            decryptInput
-        ) {
-
-            decryptButton.click();
-
-        } else {
-
-            encryptButton.click();
-        }
-    }
-);
-
-
-// ======================================================
-// ENVIRONMENT
-// ======================================================
-
-function checkEnvironment() {
-
-    if (
-        !window.crypto ||
-        !window.crypto.subtle
-    ) {
-
-        encryptButton.disabled =
-            true;
-
-
-        decryptButton.disabled =
-            true;
-
-
-        addProfile.disabled =
-            true;
-
-
-        manageProfiles.disabled =
-            true;
-
-
-        setPanelStatus(
-
-            encryptStatusContainer,
-
-            encryptStatus,
-
-            "error",
-
-            "Web Crypto API is unavailable."
-        );
-
-
-        setPanelStatus(
-
-            decryptStatusContainer,
-
-            decryptStatus,
-
-            "error",
-
-            "Web Crypto API is unavailable."
-        );
-    }
-
-
-    if (
-        !window.indexedDB
-    ) {
-
-        addProfile.disabled =
-            true;
-
-
-        manageProfiles.disabled =
-            true;
-
-
-        profileNotice.textContent =
-            "IndexedDB unavailable. Profiles are disabled.";
-    }
+    }, EJECT_HOLD_DURATION);
 }
 
-
-// ======================================================
-// INITIALIZATION
-// ======================================================
-
-async function initializeApp() {
-
-    detectExtensionMode();
-
-    loadTheme();
-
-    setMobileMode(
-        "encrypt"
-    );
-
-    updateEncryptCounter();
-
-    updateDecryptCounter();
-
-    checkEnvironment();
-
-
-    if (
-        !window.indexedDB ||
-        !window.crypto ||
-        !window.crypto.subtle
-    ) {
-
-        refreshProfileSelect();
-
-        updateKeySourceHint();
-
+function cancelEjectHold() {
+    if (ejectCommitted) {
         return;
     }
 
+    if (ejectHoldTimer) {
+        window.clearTimeout(ejectHoldTimer);
+        ejectHoldTimer = null;
+    }
 
-    try {
+    ejectButton.classList.remove("eject-holding");
+}
 
-        await loadProfiles();
+async function destroyCipherVaultData() {
+    clearVisibleSession();
+    profiles = [];
+    renderProfileSelect();
 
+    // Preserve the user's theme preference; remove CipherVault session-related localStorage only.
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
 
-        await migrateLegacyData();
-
-
-        refreshProfileSelect();
-
-
-        const savedActiveId =
-            localStorage.getItem(
-                ACTIVE_PROFILE_STORAGE_KEY
-            );
-
-
-        if (
-            savedActiveId &&
-            getProfile(
-                savedActiveId
-            )
-        ) {
-
-            profileSelect.value =
-                savedActiveId;
-
-
-            activateProfile(
-                savedActiveId
-            );
-
-
-        } else {
-
-            activeProfileId =
-                "";
-
-            profileSelect.value =
-                "";
-
-            updateKeySourceHint();
+        if (key && key.startsWith(STORAGE_PREFIX) && key !== THEME_KEY) {
+            localStorage.removeItem(key);
         }
+    }
 
+    if (dbInstance) {
+        dbInstance.close();
+        dbInstance = null;
+    }
 
-    } catch (
-        error
-    ) {
+    await new Promise(resolve => {
+        const request = indexedDB.deleteDatabase(DB_NAME);
 
-        console.warn(
-            "CipherVault local storage initialization failed:",
-            error
-        );
+        request.onsuccess = () => resolve();
+        request.onerror = () => resolve();
+        request.onblocked = () => resolve();
+    });
+}
 
+async function leaveCipherVault() {
+    try {
+        if (
+            isExtensionMode() &&
+            typeof chrome !== "undefined" &&
+            chrome.tabs &&
+            typeof chrome.tabs.create === "function"
+        ) {
+            await chrome.tabs.create({ url: EJECT_DESTINATION });
+            window.close();
+            return;
+        }
+    } catch (error) {
+        console.warn("Extension redirect failed; falling back to window navigation.", error);
+    }
 
-        profileNotice.textContent =
-            "Saved profiles could not be loaded.";
+    window.location.replace(EJECT_DESTINATION);
+}
 
+/* =========================================================
+   Misc UI helpers
+   ========================================================= */
 
-        refreshProfileSelect();
+function togglePasswordVisibility(input, button) {
+    const reveal = input.type === "password";
+    input.type = reveal ? "text" : "password";
+    button.textContent = reveal ? "◌" : "◉";
+    button.title = reveal ? "Hide secret key" : "Show secret key";
+}
 
-        updateKeySourceHint();
+function showToast(message, isError = false) {
+    if (toastTimer) {
+        window.clearTimeout(toastTimer);
+    }
+
+    toast.textContent = message;
+    toast.classList.toggle("error", isError);
+    toast.hidden = false;
+
+    toastTimer = window.setTimeout(() => {
+        toast.hidden = true;
+        toast.classList.remove("error");
+    }, 2600);
+}
+
+function closeModalOnBackdrop(event) {
+    if (event.target !== event.currentTarget) {
+        return;
+    }
+
+    event.currentTarget.hidden = true;
+}
+
+function handleGlobalKeydown(event) {
+    if (event.key === "Escape") {
+        profileModal.hidden = true;
+        manageProfilesModal.hidden = true;
+        clearModal.hidden = true;
+        return;
+    }
+
+    if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") {
+        return;
+    }
+
+    if (document.activeElement === decryptInput) {
+        event.preventDefault();
+        handleDecrypt();
+        return;
+    }
+
+    if (document.activeElement === encryptInput) {
+        event.preventDefault();
+        handleEncrypt();
     }
 }
 
+/* =========================================================
+   Events
+   ========================================================= */
+
+function bindEvents() {
+    themeToggle.addEventListener("click", toggleTheme);
+
+    profileSelect.addEventListener("change", handleProfileSelection);
+    password.addEventListener("input", handleSecretOverride);
+    togglePassword.addEventListener("click", () => togglePasswordVisibility(password, togglePassword));
+    credentialsSummary.addEventListener("click", expandCredentials);
+
+    addProfileButton.addEventListener("click", () => openProfileEditor());
+    manageProfilesButton.addEventListener("click", openManageProfiles);
+
+    for (const button of modeButtons) {
+        button.addEventListener("click", () => setMobileMode(button.dataset.mode));
+    }
+
+    encryptInput.addEventListener("input", updateEncryptCount);
+    decryptInput.addEventListener("input", updateDecryptCount);
+
+    encryptButton.addEventListener("click", handleEncrypt);
+    decryptButton.addEventListener("click", handleDecrypt);
+
+    copyEncryptButton.addEventListener("click", () => copyText(encryptOutput.value, copyEncryptButton, encryptOutput));
+    copyDecryptButton.addEventListener("click", () => copyText(decryptOutput.value, copyDecryptButton, decryptOutput));
+
+    clearEncryptButton.addEventListener("click", () => openClearConfirmation("encrypt"));
+    clearDecryptButton.addEventListener("click", () => openClearConfirmation("decrypt"));
+
+    closeProfileModal.addEventListener("click", closeProfileEditor);
+    cancelProfileButton.addEventListener("click", closeProfileEditor);
+    saveProfileButton.addEventListener("click", saveProfileFromModal);
+    toggleProfileSecret.addEventListener("click", () => togglePasswordVisibility(profileSecret, toggleProfileSecret));
+
+    profileName.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            profileSecret.focus();
+        }
+    });
+
+    profileSecret.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            saveProfileFromModal();
+        }
+    });
+
+    closeManageProfilesModal.addEventListener("click", closeManageProfiles);
+    manageAddProfileButton.addEventListener("click", () => {
+        closeManageProfiles();
+        openProfileEditor();
+    });
+
+    closeClearModal.addEventListener("click", closeClearConfirmation);
+    cancelClearButton.addEventListener("click", closeClearConfirmation);
+    confirmClearButton.addEventListener("click", confirmClearPanel);
+
+    profileModal.addEventListener("click", closeModalOnBackdrop);
+    manageProfilesModal.addEventListener("click", closeModalOnBackdrop);
+    clearModal.addEventListener("click", closeModalOnBackdrop);
+
+    ejectButton.addEventListener("pointerdown", event => {
+        ejectButton.setPointerCapture?.(event.pointerId);
+        beginEjectHold(event);
+    });
+
+    ejectButton.addEventListener("pointerup", cancelEjectHold);
+    ejectButton.addEventListener("pointercancel", cancelEjectHold);
+    ejectButton.addEventListener("contextmenu", event => event.preventDefault());
+
+    ejectButton.addEventListener("keydown", event => {
+        if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+            event.preventDefault();
+            beginEjectHold(event);
+        }
+    });
+
+    ejectButton.addEventListener("keyup", event => {
+        if (event.key === " " || event.key === "Enter") {
+            event.preventDefault();
+            cancelEjectHold();
+        }
+    });
+
+    document.addEventListener("keydown", handleGlobalKeydown);
+}
 
 initializeApp();
