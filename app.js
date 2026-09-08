@@ -155,13 +155,21 @@ async function initializeApp() {
 }
 
 function detectExtensionMode() {
+    let extensionRuntime = false;
+
     try {
-        if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id) {
-            root.classList.add("extension-mode");
-        }
+        extensionRuntime = Boolean(
+            typeof chrome !== "undefined" &&
+            chrome.runtime &&
+            chrome.runtime.id
+        );
     } catch {
-        // Normal website context.
+        extensionRuntime = false;
     }
+
+    root.classList.toggle("extension-mode", extensionRuntime);
+    root.classList.toggle("web-mode", !extensionRuntime);
+    root.dataset.runtime = extensionRuntime ? "extension" : "web";
 }
 
 function isExtensionMode() {

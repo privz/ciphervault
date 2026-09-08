@@ -68,7 +68,7 @@ body {
 
 body {
     min-height: 100vh;
-    padding: 28px;
+    padding: clamp(22px, 3vw, 46px);
     background:
         radial-gradient(circle at 15% 0%, rgba(84, 255, 194, 0.07), transparent 30%),
         linear-gradient(160deg, var(--bg), var(--bg-deep));
@@ -101,9 +101,9 @@ textarea:focus-visible {
 }
 
 .app-shell {
-    width: min(1180px, 100%);
+    width: min(1440px, 100%);
     margin: 0 auto;
-    padding: 20px;
+    padding: 26px;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     background: color-mix(in srgb, var(--surface) 94%, transparent);
@@ -116,7 +116,7 @@ textarea:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 18px;
+    margin-bottom: 22px;
 }
 
 .brand-area,
@@ -236,8 +236,8 @@ textarea:focus-visible {
 }
 
 .credentials-section {
-    margin-bottom: 16px;
-    padding: 14px;
+    margin-bottom: 20px;
+    padding: 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--surface-2);
@@ -245,8 +245,8 @@ textarea:focus-visible {
 
 .credentials-editor {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    gap: 12px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+    gap: 16px;
     align-items: start;
 }
 
@@ -297,8 +297,8 @@ select {
 }
 
 textarea {
-    min-height: 180px;
-    padding: 14px;
+    min-height: 235px;
+    padding: 15px;
     resize: vertical;
     line-height: 1.5;
 }
@@ -441,16 +441,16 @@ textarea:focus {
 
 .workspace {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
 }
 
 .cipher-panel {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
+    gap: 14px;
+    padding: 18px;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--surface-2);
@@ -557,7 +557,7 @@ textarea:focus {
 }
 
 .output-area {
-    min-height: 120px;
+    min-height: 150px;
     background: color-mix(in srgb, var(--surface) 89%, var(--accent) 11%);
 }
 
@@ -875,51 +875,77 @@ body.panic-cleared .result-block {
     display: none !important;
 }
 
+/* =========================================
+   Website-only responsive layout
+   Base styles above are the desktop website.
+   Extension layout is isolated further below.
+   ========================================= */
+
+@media (max-width: 1080px) and (min-width: 761px) {
+    html:not(.extension-mode) body {
+        padding: 20px;
+    }
+
+    html:not(.extension-mode) .app-shell {
+        width: 100%;
+        padding: 20px;
+    }
+
+    html:not(.extension-mode) .credentials-editor {
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
+        gap: 12px;
+    }
+
+    html:not(.extension-mode) textarea {
+        min-height: 205px;
+    }
+}
+
 @media (max-width: 760px) {
-    body {
+    html:not(.extension-mode) body {
         padding: 14px;
     }
 
-    .app-shell {
+    html:not(.extension-mode) .app-shell {
         padding: 14px;
     }
 
-    .local-only-badge span:last-child {
+    html:not(.extension-mode) .local-only-badge span:last-child {
         display: none;
     }
 
-    .local-only-badge {
+    html:not(.extension-mode) .local-only-badge {
         width: 30px;
         justify-content: center;
         padding: 0;
     }
 
-    .credentials-editor {
+    html:not(.extension-mode) .credentials-editor {
         grid-template-columns: 1fr;
     }
 
-    .mobile-mode-switch {
+    html:not(.extension-mode) .mobile-mode-switch {
         display: grid;
     }
 
-    .workspace {
+    html:not(.extension-mode) .workspace {
         display: block;
     }
 
-    .cipher-panel {
+    html:not(.extension-mode) .cipher-panel {
         display: none;
     }
 
-    .cipher-panel.active-mobile {
+    html:not(.extension-mode) .cipher-panel.active-mobile {
         display: flex;
     }
 
-    .app-footer {
+    html:not(.extension-mode) .app-footer {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .eject-button {
+    html:not(.extension-mode) .eject-button {
         width: 100%;
     }
 }
@@ -979,6 +1005,15 @@ html.extension-mode .local-only-badge {
 html.extension-mode .icon-button {
     width: 34px;
     height: 34px;
+}
+
+html.extension-mode .local-only-badge span:last-child {
+    display: inline;
+}
+
+html.extension-mode .local-only-badge {
+    width: auto;
+    justify-content: center;
 }
 
 html.extension-mode .credentials-section {
@@ -1073,6 +1108,8 @@ html.extension-mode .text-action {
 }
 
 html.extension-mode .app-footer {
+    align-items: stretch;
+    flex-direction: column;
     margin-top: 10px;
     padding-top: 10px;
 }
@@ -1082,6 +1119,7 @@ html.extension-mode .footer-copy {
 }
 
 html.extension-mode .eject-button {
+    width: 100%;
     min-height: 34px;
     font-size: 9px;
 }
