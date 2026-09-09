@@ -56,8 +56,8 @@ Profiles allow you to keep a different Shared Secret for each contact.
 Example:
 
 ```text
-Cristian → Secret A
-Gabriel  → Secret B
+abc → Secret A
+xyz  → Secret B
 ```
 
 Features include:
