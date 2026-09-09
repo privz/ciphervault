@@ -23,6 +23,14 @@ const THEME_KEY = "ciphervault-theme";
 const ACTIVE_PROFILE_KEY = "ciphervault-active-profile";
 const STORAGE_PREFIX = "ciphervault-";
 
+const SESSION_WORKSPACE_KEY = "ciphervault-session-workspace";
+const SESSION_META_KEY = "ciphervault-session-meta";
+const SESSION_RUNTIME_SECRET_KEY = "ciphervault-session-runtime-secret";
+const SESSION_PROFILE_NAME_KEY = "ciphervault-session-profile-name";
+const QUICK_ACTIVE_PROFILE_KEY = "ciphervault-quick-active-profile";
+const QUICK_THEME_KEY = "ciphervault-quick-theme";
+const SESSION_TTL_MS = 5 * 60 * 1000;
+
 const EJECT_HOLD_DURATION = 900;
 const EJECT_DESTINATION = "https://github.com/";
 
@@ -63,6 +71,10 @@ let clearTarget = null;
 let toastTimer = null;
 let ejectHoldTimer = null;
 let ejectCommitted = false;
+let activeMobileMode = "encrypt";
+let sessionSaveTimer = null;
+let sessionStateReady = false;
+let suppressSessionPersistence = false;
 
 /* =========================================================
    DOM
@@ -148,9 +160,18 @@ async function initializeApp() {
         profiles = await loadProfiles();
         renderProfileSelect();
         await restoreActiveProfile();
+
+        if (isExtensionMode()) {
+            await purgeExpiredExtensionSession();
+            await restoreTemporaryRuntimeSecret();
+            await restoreSessionWorkspace();
+            await syncQuickCipherRuntime();
+        }
     } catch (error) {
-        console.error("Profile storage initialization failed:", error);
-        showToast("Profiles could not be loaded.", true);
+        console.error("Profile/session initialization failed:", error);
+        showToast("Profiles or temporary draft state could not be loaded.", true);
+    } finally {
+        sessionStateReady = true;
     }
 }
 
@@ -193,6 +214,10 @@ function applyTheme(theme) {
     root.setAttribute("data-theme", theme);
     localStorage.setItem(THEME_KEY, theme);
     updateThemeIcon();
+
+    if (isExtensionMode() && typeof chrome !== "undefined" && chrome.storage?.local) {
+        void chrome.storage.local.set({ [QUICK_THEME_KEY]: theme });
+    }
 }
 
 function updateThemeIcon() {
@@ -376,6 +401,11 @@ async function restoreActiveProfile() {
 
     if (!profile) {
         localStorage.removeItem(ACTIVE_PROFILE_KEY);
+
+        if (isExtensionMode() && typeof chrome !== "undefined" && chrome.storage?.local) {
+            await chrome.storage.local.remove(QUICK_ACTIVE_PROFILE_KEY);
+        }
+
         expandCredentials();
         return;
     }
@@ -412,6 +442,8 @@ function handleProfileSelection() {
         sessionOverride.hidden = true;
         localStorage.removeItem(ACTIVE_PROFILE_KEY);
         expandCredentials();
+        void clearQuickCipherActiveProfile();
+        scheduleWorkspaceSave();
         return;
     }
 
@@ -419,6 +451,8 @@ function handleProfileSelection() {
     sessionOverride.hidden = true;
     localStorage.setItem(ACTIVE_PROFILE_KEY, profile.id);
     collapseCredentials(profile.name);
+    void syncQuickCipherRuntime();
+    scheduleWorkspaceSave();
 }
 
 function handleSecretOverride() {
@@ -426,10 +460,14 @@ function handleSecretOverride() {
 
     if (!profile) {
         sessionOverride.hidden = true;
+        void syncQuickCipherRuntime();
+        scheduleWorkspaceSave();
         return;
     }
 
     sessionOverride.hidden = password.value === profile.secretKey;
+    void syncQuickCipherRuntime();
+    scheduleWorkspaceSave();
 }
 
 function openProfileEditor(profileId = null) {
@@ -524,6 +562,7 @@ async function saveProfileFromModal() {
 
     if (savedProfile) {
         collapseCredentials(savedProfile.name);
+        await syncQuickCipherRuntime();
     }
 
     showToast("Profile saved.");
@@ -618,6 +657,7 @@ async function deleteProfile(profileId) {
         sessionOverride.hidden = true;
         localStorage.removeItem(ACTIVE_PROFILE_KEY);
         expandCredentials();
+        await clearQuickCipherActiveProfile();
     }
 
     renderProfileSelect();
@@ -813,6 +853,7 @@ async function handleEncrypt() {
         encryptResultBlock.hidden = false;
         copyEncryptButton.disabled = false;
         encryptStatus.textContent = "Ready";
+        scheduleWorkspaceSave();
     } catch (error) {
         encryptResultBlock.hidden = true;
         copyEncryptButton.disabled = true;
@@ -870,6 +911,7 @@ async function handleDecrypt() {
         decryptResultBlock.hidden = false;
         copyDecryptButton.disabled = false;
         decryptStatus.textContent = failures ? `${failures} failed` : "Ready";
+        scheduleWorkspaceSave();
     } catch (error) {
         decryptResultBlock.hidden = true;
         copyDecryptButton.disabled = true;
@@ -909,13 +951,17 @@ function updateDecryptCount() {
 }
 
 function setMobileMode(mode) {
+    activeMobileMode = mode === "decrypt" ? "decrypt" : "encrypt";
+
     for (const button of modeButtons) {
-        button.classList.toggle("active", button.dataset.mode === mode);
+        button.classList.toggle("active", button.dataset.mode === activeMobileMode);
     }
 
     for (const panel of cipherPanels) {
-        panel.classList.toggle("active-mobile", panel.dataset.panel === mode);
+        panel.classList.toggle("active-mobile", panel.dataset.panel === activeMobileMode);
     }
+
+    scheduleWorkspaceSave();
 }
 
 /* =========================================================
@@ -992,6 +1038,7 @@ function clearEncryptPanel() {
     encryptResultBlock.hidden = true;
     copyEncryptButton.disabled = true;
     updateEncryptCount();
+    scheduleWorkspaceSave();
 }
 
 function clearDecryptPanel() {
@@ -1001,6 +1048,215 @@ function clearDecryptPanel() {
     decryptResultBlock.hidden = true;
     copyDecryptButton.disabled = true;
     updateDecryptCount();
+    scheduleWorkspaceSave();
+}
+
+/* =========================================================
+   Extension temporary draft recovery / Quick Cipher sync
+   No operation log is kept. Only one temporary workspace snapshot
+   is stored in chrome.storage.session and expires after 5 minutes.
+   ========================================================= */
+
+function canUseExtensionStorage() {
+    return Boolean(
+        isExtensionMode() &&
+        typeof chrome !== "undefined" &&
+        chrome.storage?.session &&
+        chrome.storage?.local
+    );
+}
+
+async function purgeExpiredExtensionSession() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    const stored = await chrome.storage.session.get(SESSION_META_KEY);
+    const meta = stored[SESSION_META_KEY];
+
+    if (!meta?.expiresAt || Date.now() <= meta.expiresAt) {
+        return;
+    }
+
+    await chrome.storage.session.remove([
+        SESSION_WORKSPACE_KEY,
+        SESSION_META_KEY,
+        SESSION_RUNTIME_SECRET_KEY,
+        SESSION_PROFILE_NAME_KEY
+    ]);
+}
+
+async function touchExtensionSession() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    await chrome.storage.session.set({
+        [SESSION_META_KEY]: {
+            updatedAt: Date.now(),
+            expiresAt: Date.now() + SESSION_TTL_MS
+        }
+    });
+}
+
+function scheduleWorkspaceSave() {
+    if (!canUseExtensionStorage() || !sessionStateReady || suppressSessionPersistence) {
+        return;
+    }
+
+    if (sessionSaveTimer) {
+        window.clearTimeout(sessionSaveTimer);
+    }
+
+    sessionSaveTimer = window.setTimeout(() => {
+        sessionSaveTimer = null;
+        void saveSessionWorkspace();
+    }, 220);
+}
+
+async function saveSessionWorkspace() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    const workspace = {
+        encryptInput: encryptInput.value,
+        encryptOutput: encryptOutput.value,
+        encryptResultVisible: !encryptResultBlock.hidden,
+        encryptStatus: encryptStatus.textContent,
+        decryptInput: decryptInput.value,
+        decryptOutput: decryptOutput.value,
+        decryptResultVisible: !decryptResultBlock.hidden,
+        decryptStatus: decryptStatus.textContent,
+        activeMode: activeMobileMode,
+        updatedAt: Date.now()
+    };
+
+    await chrome.storage.session.set({
+        [SESSION_WORKSPACE_KEY]: workspace
+    });
+
+    await touchExtensionSession();
+}
+
+async function restoreSessionWorkspace() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    const stored = await chrome.storage.session.get(SESSION_WORKSPACE_KEY);
+    const workspace = stored[SESSION_WORKSPACE_KEY];
+
+    if (!workspace) {
+        return;
+    }
+
+    encryptInput.value = workspace.encryptInput || "";
+    encryptOutput.value = workspace.encryptOutput || "";
+    encryptStatus.textContent = workspace.encryptStatus || "";
+    encryptResultBlock.hidden = !(workspace.encryptResultVisible && encryptOutput.value);
+    copyEncryptButton.disabled = !encryptOutput.value;
+
+    decryptInput.value = workspace.decryptInput || "";
+    decryptOutput.value = workspace.decryptOutput || "";
+    decryptStatus.textContent = workspace.decryptStatus || "";
+    decryptResultBlock.hidden = !(workspace.decryptResultVisible && decryptOutput.value);
+    copyDecryptButton.disabled = !decryptOutput.value;
+
+    updateEncryptCount();
+    updateDecryptCount();
+    setMobileMode(workspace.activeMode || "encrypt");
+
+    await touchExtensionSession();
+
+    if (
+        encryptInput.value ||
+        encryptOutput.value ||
+        decryptInput.value ||
+        decryptOutput.value
+    ) {
+        showToast("Temporary draft restored.");
+    }
+}
+
+async function restoreTemporaryRuntimeSecret() {
+    if (!canUseExtensionStorage() || profileSelect.value) {
+        return;
+    }
+
+    const stored = await chrome.storage.session.get([
+        SESSION_RUNTIME_SECRET_KEY,
+        SESSION_PROFILE_NAME_KEY
+    ]);
+
+    const runtimeSecret = stored[SESSION_RUNTIME_SECRET_KEY];
+
+    if (runtimeSecret) {
+        password.value = runtimeSecret;
+    }
+}
+
+async function syncQuickCipherRuntime() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    const profile = profiles.find(item => item.id === profileSelect.value);
+    const profileNameValue = profile?.name || "Temporary Session";
+    const runtimeSecret = password.value || "";
+
+    await chrome.storage.session.set({
+        [SESSION_RUNTIME_SECRET_KEY]: runtimeSecret,
+        [SESSION_PROFILE_NAME_KEY]: profileNameValue
+    });
+
+    if (profile) {
+        await chrome.storage.local.set({
+            [QUICK_ACTIVE_PROFILE_KEY]: profile.id,
+            [QUICK_THEME_KEY]: root.getAttribute("data-theme") || "dark"
+        });
+    } else {
+        await chrome.storage.local.remove(QUICK_ACTIVE_PROFILE_KEY);
+        await chrome.storage.local.set({
+            [QUICK_THEME_KEY]: root.getAttribute("data-theme") || "dark"
+        });
+    }
+
+    await touchExtensionSession();
+}
+
+async function clearQuickCipherActiveProfile() {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    await chrome.storage.session.remove([
+        SESSION_RUNTIME_SECRET_KEY,
+        SESSION_PROFILE_NAME_KEY
+    ]);
+    await chrome.storage.local.remove(QUICK_ACTIVE_PROFILE_KEY);
+}
+
+async function clearExtensionSessionState({ clearPersistentActiveProfile = false } = {}) {
+    if (!canUseExtensionStorage()) {
+        return;
+    }
+
+    if (sessionSaveTimer) {
+        window.clearTimeout(sessionSaveTimer);
+        sessionSaveTimer = null;
+    }
+
+    await chrome.storage.session.remove([
+        SESSION_WORKSPACE_KEY,
+        SESSION_META_KEY,
+        SESSION_RUNTIME_SECRET_KEY,
+        SESSION_PROFILE_NAME_KEY
+    ]);
+
+    if (clearPersistentActiveProfile) {
+        await chrome.storage.local.remove(QUICK_ACTIVE_PROFILE_KEY);
+    }
 }
 
 /* =========================================================
@@ -1010,6 +1266,8 @@ function clearDecryptPanel() {
    ========================================================= */
 
 function clearVisibleSession() {
+    suppressSessionPersistence = true;
+
     password.value = "";
     profileSelect.value = "";
     sessionOverride.hidden = true;
@@ -1023,6 +1281,13 @@ function clearVisibleSession() {
     profileModal.hidden = true;
     manageProfilesModal.hidden = true;
     clearModal.hidden = true;
+
+    // A single press immediately erases the temporary draft/recovery buffer
+    // and Quick Cipher runtime credentials. Saved Profiles stay intact.
+    void clearExtensionSessionState({ clearPersistentActiveProfile: true })
+        .finally(() => {
+            suppressSessionPersistence = false;
+        });
 
     document.body.classList.add("panic-cleared");
 
@@ -1072,6 +1337,7 @@ function cancelEjectHold() {
 
 async function destroyCipherVaultData() {
     clearVisibleSession();
+    await clearExtensionSessionState({ clearPersistentActiveProfile: true });
     profiles = [];
     renderProfileSelect();
 
@@ -1194,8 +1460,15 @@ function bindEvents() {
         button.addEventListener("click", () => setMobileMode(button.dataset.mode));
     }
 
-    encryptInput.addEventListener("input", updateEncryptCount);
-    decryptInput.addEventListener("input", updateDecryptCount);
+    encryptInput.addEventListener("input", () => {
+        updateEncryptCount();
+        scheduleWorkspaceSave();
+    });
+
+    decryptInput.addEventListener("input", () => {
+        updateDecryptCount();
+        scheduleWorkspaceSave();
+    });
 
     encryptButton.addEventListener("click", handleEncrypt);
     decryptButton.addEventListener("click", handleDecrypt);
