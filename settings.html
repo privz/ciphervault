@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <title>CipherVault — Quick Cipher</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon32.png">
+    <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+    <main class="settings-shell">
+        <header class="settings-header">
+            <a class="back-link" href="index.html" aria-label="Back to CipherVault">←</a>
+            <div class="brand-area">
+                <img src="./icons/icon64.png" alt="CipherVault">
+                <div>
+                    <h1><span>Cipher</span><strong>Vault</strong></h1>
+                    <span>LOCAL ENCRYPTION</span>
+                </div>
+            </div>
+            <button id="settingsThemeToggle" class="icon-button" type="button" aria-label="Toggle theme">☀</button>
+        </header>
+
+        <section class="settings-intro">
+            <span class="eyebrow">EXTENSION</span>
+            <h2>Quick Cipher settings</h2>
+            <p>Configure what happens after Quick Cipher opens, and how CipherVault finds text when nothing is selected.</p>
+        </section>
+
+        <section class="settings-card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-index">01</span>
+                    <div>
+                        <h3>Global trigger</h3>
+                        <p>Starts Quick Cipher from any supported page.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-row global-row">
+                <div class="setting-copy">
+                    <strong>Quick Cipher</strong>
+                    <span>Encrypt / decrypt the current Smart Target</span>
+                </div>
+                <div class="global-control">
+                    <kbd id="globalShortcut">Loading…</kbd>
+                    <button id="changeGlobalShortcut" class="secondary-button" type="button">CHANGE IN CHROME</button>
+                </div>
+            </div>
+
+            <div class="notice">
+                Chrome owns global extension shortcuts. CipherVault can display the current shortcut here, but Chrome requires changes to be made on its Extensions Shortcuts page.
+            </div>
+        </section>
+
+        <section class="settings-card">
+            <div class="section-heading action-heading">
+                <div>
+                    <span class="section-index">02</span>
+                    <div>
+                        <h3>Action keys</h3>
+                        <p>These keys work only while the Quick Cipher bubble is open.</p>
+                    </div>
+                </div>
+                <button id="resetActionKeys" class="text-button" type="button">RESET DEFAULTS</button>
+            </div>
+
+            <div class="key-grid">
+                <button class="key-setting" type="button" data-action="copy">
+                    <span class="key-copy">
+                        <strong>Copy result</strong>
+                        <span>Copy encrypted or decrypted output</span>
+                    </span>
+                    <kbd data-binding="copy">C</kbd>
+                </button>
+
+                <button class="key-setting" type="button" data-action="replace">
+                    <span class="key-copy">
+                        <strong>Replace target</strong>
+                        <span>Replace the original selection or focused editor</span>
+                    </span>
+                    <kbd data-binding="replace">R</kbd>
+                </button>
+
+                <button class="key-setting" type="button" data-action="profile">
+                    <span class="key-copy">
+                        <strong>Profile picker</strong>
+                        <span>Retry the current text with another Profile</span>
+                    </span>
+                    <kbd data-binding="profile">P</kbd>
+                </button>
+
+                <button class="key-setting" type="button" data-action="close">
+                    <span class="key-copy">
+                        <strong>Close bubble</strong>
+                        <span>Dismiss Quick Cipher without changing text</span>
+                    </span>
+                    <kbd data-binding="close">Esc</kbd>
+                </button>
+            </div>
+
+            <div id="captureHint" class="capture-hint" hidden>
+                Press the new shortcut now. Modifier-only keys are ignored. Some browser/system-reserved combinations may not reach the page.
+            </div>
+            <div id="settingsError" class="settings-error" hidden></div>
+        </section>
+
+        <section class="settings-card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-index">03</span>
+                    <div>
+                        <h3>Smart Target</h3>
+                        <p>Choose what CipherVault may process when you have not explicitly selected text.</p>
+                    </div>
+                </div>
+            </div>
+
+            <label class="toggle-row">
+                <span>
+                    <strong>Use focused text editor</strong>
+                    <span>When an input, textarea, or contenteditable has text, process the whole editor.</span>
+                </span>
+                <input id="smartFocusedEditor" type="checkbox" checked>
+                <span class="toggle"></span>
+            </label>
+
+            <label class="toggle-row">
+                <span>
+                    <strong>Use hovered Google Chat message</strong>
+                    <span>Point at a message and run Quick Cipher without selecting it.</span>
+                </span>
+                <input id="smartHoveredGoogleChat" type="checkbox" checked>
+                <span class="toggle"></span>
+            </label>
+
+            <div class="priority-box">
+                <strong>Target priority</strong>
+                <div>Selected text → hovered encrypted Chat message → focused editor → hovered Chat message</div>
+            </div>
+        </section>
+
+        <section class="settings-card flow-card">
+            <span class="eyebrow">KEYBOARD FLOW</span>
+            <div class="flow-line"><kbd id="flowGlobalKey">Ctrl+Shift+Y</kbd><span>Process target</span></div>
+            <div class="flow-line"><kbd id="flowReplaceKey">R</kbd><span>Replace editable target</span></div>
+            <div class="flow-line"><kbd id="flowCopyKey">C</kbd><span>Copy result</span></div>
+            <div class="flow-line"><kbd id="flowProfileKey">P</kbd><span>Choose another Profile</span></div>
+        </section>
+
+        <footer class="settings-footer">AES-256-GCM · PBKDF2-SHA256 · LOCAL ONLY</footer>
+    </main>
+
+    <div id="settingsToast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script src="settings.js"></script>
+</body>
+</html>
