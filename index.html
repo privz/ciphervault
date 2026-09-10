@@ -12,6 +12,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon32.png">
     <link rel="apple-touch-icon" sizes="128x128" href="./icons/icon128.png">
     <link rel="stylesheet" href="style.css">
+    <style>html:not(.extension-mode) .extension-only-control{display:none!important}.settings-link{color:var(--text-soft);text-decoration:none}</style>
 </head>
 
 <body>
@@ -31,6 +32,13 @@
             </div>
 
             <div class="header-actions">
+                <a
+                    class="icon-button extension-only-control settings-link"
+                    href="settings.html"
+                    aria-label="Quick Cipher settings"
+                    title="Quick Cipher settings"
+                >⚙</a>
+
                 <div class="local-only-badge" title="Encryption runs locally in this browser">
                     <span class="local-dot"></span>
                     <span>LOCAL ONLY</span>
