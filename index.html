@@ -292,6 +292,32 @@
                 >◉</button>
             </div>
 
+            <div id="googleChatProfileField" class="google-chat-profile-field">
+                <label for="profileGoogleChatId">GOOGLE CHAT CONVERSATION</label>
+
+                <div class="field-with-actions google-chat-field-row">
+                    <input
+                        id="profileGoogleChatId"
+                        type="text"
+                        maxlength="300"
+                        placeholder="Chat URL or ID, e.g. reJ7DSAAAAE"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+
+                    <button
+                        id="useCurrentGoogleChatButton"
+                        class="detect-chat-button"
+                        type="button"
+                        title="Use the Google Chat conversation currently open"
+                    >USE CURRENT</button>
+                </div>
+
+                <div id="googleChatProfileNote" class="field-note">
+                    Used only on chat.google.com. CipherVault stores only the conversation ID, not the full URL.
+                </div>
+            </div>
+
             <div id="profileModalError" class="modal-error" hidden></div>
 
             <div class="modal-actions">
@@ -347,5 +373,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="app.js"></script>
+    <script src="auto-profile.js"></script>
 </body>
 </html>

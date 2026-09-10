@@ -56,8 +56,8 @@ Profiles allow you to keep a different Shared Secret for each contact.
 Example:
 
 ```text
-abc → Secret A
-xyz  → Secret B
+Contact A → Secret A
+Contact B → Secret B
 ```
 
 Features include:
@@ -300,6 +300,39 @@ CipherVault does **not** request permanent `<all_urls>` access in this version.
 
 ---
 
+
+## Google Chat automatic profiles
+
+CipherVault can associate a saved Profile with a specific Google Chat conversation.
+
+Example Google Chat URL:
+
+```text
+https://chat.google.com/app/chat/reJ7DSAAAAE
+```
+
+CipherVault extracts and stores only:
+
+```text
+reJ7DSAAAAE
+```
+
+When Quick Cipher runs on that conversation, the matching Profile is selected automatically before encryption/decryption.
+
+Resolution order:
+
+```text
+Google Chat conversation mapping
+→ temporary/manual runtime selection
+→ manually active Profile
+→ profile-required error
+```
+
+The profile editor accepts either the full Google Chat URL or only the conversation ID. When the popup is opened while a Google Chat conversation is active, **USE CURRENT** can detect and fill the conversation automatically.
+
+The Google Chat mapping is stored inside the encrypted Profile data. Secret Keys are not duplicated into a separate URL mapping table.
+
+
 ## Security model
 
 CipherVault is a local encryption utility, not a full secure-messaging protocol.
@@ -365,6 +398,9 @@ CipherVault/
 ├── style.css
 ├── app.js
 ├── service-worker.js
+├── service-worker-v112.js
+├── auto-profile-worker.js
+├── auto-profile.js
 ├── quick-cipher.js
 ├── manifest.json
 ├── README.md
@@ -389,9 +425,9 @@ Main website/popup logic:
 - temporary draft recovery
 - Eject
 
-### `service-worker.js`
+### `service-worker.js` / `service-worker-v112.js`
 
-Manifest V3 event coordinator:
+Manifest V3 event coordinator. v1.1.2 layers Google Chat context resolution over the tested Quick Cipher worker:
 
 - listens for the Quick Cipher hotkey
 - resolves the active Profile/Temporary Session secret
@@ -455,13 +491,15 @@ chrome://extensions/shortcuts
 ## Current version
 
 ```text
-1.1.1
+1.1.2
 ```
 
 Main additions:
 
 ```text
 Quick Cipher smart hotkey
+Google Chat multi-frame support
+Automatic Google Chat Conversation ID → Profile mapping
 Temporary popup draft recovery
 Immediate recovery-buffer wipe on Eject press
 ```
