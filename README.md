@@ -91,48 +91,71 @@ Example error:
 
 ### Quick Cipher
 
-Quick Cipher is the fast workflow for the browser extension.
+Quick Cipher is the fast browser-extension workflow.
 
-Default shortcut:
+Default global trigger:
 
 ```text
 Windows / Linux: Ctrl + Shift + Y
 macOS:           Command + Shift + Y
 ```
 
-You can change the shortcut from:
+The global trigger is managed by Chrome and can be changed from:
 
 ```text
 chrome://extensions/shortcuts
 ```
 
-#### Encrypt selected text
+CipherVault also includes a **Quick Cipher settings page** inside the extension. It shows the current global trigger and lets you configure the keyboard actions used after the inline bubble opens.
+
+Default Quick Actions:
 
 ```text
-Select plaintext on a page
-→ Ctrl + Shift + Y
-→ CipherVault encrypts it
-→ small inline bubble appears
-→ Copy or Replace Selection
+C   → Copy result
+R   → Replace target
+P   → Profile picker / retry with another Profile
+Esc → Close Quick Cipher
 ```
 
-#### Decrypt selected text
+These action keys are local to the Quick Cipher bubble and can be changed directly from CipherVault. They are not additional global Chrome shortcuts.
+
+#### Selected text
 
 ```text
-Select a CipherVault payload
+Select plaintext or a CipherVault payload
 → Ctrl + Shift + Y
-→ CipherVault detects the payload
-→ decrypts it
-→ plaintext appears in a small inline bubble
+→ CipherVault detects Encrypt or Decrypt
+→ inline bubble appears
+→ use C / R / P / Esc or the visible buttons
 ```
 
-The shortcut is smart: it decides whether to Encrypt or Decrypt by checking whether the selected content matches the current CipherVault payload structure.
+#### Smart Target — no selection required
 
-When the selected text belongs to an editable field, the bubble can offer **Replace Selection**.
+Quick Cipher can also work without `Ctrl+A` or mouse selection.
 
-If no text is selected but the cursor is inside a normal text field containing text, Quick Cipher can use the field contents.
+When no explicit selection exists, CipherVault can use:
 
-Quick Cipher uses the active saved Profile. A Temporary Session secret can also be used while the extension session remains alive.
+- the complete focused input / textarea / contenteditable draft
+- a Google Chat message currently under the pointer
+
+Target priority favors explicit selection. A hovered valid CipherVault payload is treated as strong decrypt intent; otherwise a focused editor is preferred before a normal hovered Chat message.
+
+This makes an editable workflow possible with only the keyboard:
+
+```text
+Type message
+→ Ctrl + Shift + Y
+→ R
+→ encrypted result replaces the editor contents
+```
+
+For a received Google Chat message, point at the message and run the global trigger. No text selection is required when the hovered-message Smart Target option is enabled.
+
+#### Profile picker
+
+While the Quick Cipher bubble is open, the Profile action key opens a compact Profile picker. Use the arrow keys and Enter to retry the same captured text with another saved Profile.
+
+Quick Cipher still uses the active saved Profile by default, and Google Chat automatic mappings take priority when a matching conversation is detected. A Temporary Session key can also be used while the extension session remains alive.
 
 ### Temporary draft recovery
 
@@ -274,7 +297,7 @@ chrome://extensions/
 
 ## Extension permissions
 
-CipherVault v1.1.0 requests:
+CipherVault v1.2.0 requests:
 
 ```json
 [
@@ -294,7 +317,7 @@ Allows CipherVault to inject the Quick Cipher selection/result component into th
 
 ### `storage`
 
-Used for temporary draft recovery and extension runtime state.
+Used for temporary draft recovery, Quick Cipher preferences, and extension runtime state.
 
 CipherVault does **not** request permanent `<all_urls>` access in this version.
 
@@ -376,7 +399,6 @@ This reduces casual storage inspection but does not protect against a fully comp
 
 `extractable: false` prevents direct raw-key export. It does not prevent authorized code in the same extension context from using that CryptoKey for decryption.
 
-A future improvement under consideration is a CipherVault Master Password so the decrypt-capable master key is not persistently stored alongside the encrypted Profiles.
 
 ---
 
@@ -397,14 +419,18 @@ CipherVault/
 ├── index.html
 ├── style.css
 ├── app.js
+├── settings.html
+├── settings.css
+├── settings.js
 ├── service-worker.js
-├── service-worker-v112.js
+├── service-worker-v120.js
+├── quick-ux-worker.js
 ├── auto-profile-worker.js
 ├── auto-profile.js
 ├── quick-cipher.js
+├── quick-cipher-v120.js
 ├── manifest.json
 ├── README.md
-├── CipherVault_TODO.md
 └── icons/
     ├── icon16.png
     ├── icon32.png
@@ -425,9 +451,9 @@ Main website/popup logic:
 - temporary draft recovery
 - Eject
 
-### `service-worker.js` / `service-worker-v112.js`
+### `service-worker.js` / `service-worker-v120.js`
 
-Manifest V3 event coordinator. v1.1.2 layers Google Chat context resolution over the tested Quick Cipher worker:
+Manifest V3 event coordinator for Quick Cipher and Google Chat context resolution:
 
 - listens for the Quick Cipher hotkey
 - resolves the active Profile/Temporary Session secret
@@ -440,12 +466,27 @@ Injected only when Quick Cipher is invoked.
 
 Responsible for:
 
-- reading selected/focused text
+- reading selected text
+- Smart Target focused-editor detection
+- Google Chat hovered-message detection
 - showing the inline result bubble
-- Copy
-- Replace Selection
+- configurable Copy / Replace / Profile / Close keyboard actions
+- keyboard Profile picker and one-operation retry
 
 The bubble is rendered inside a Shadow DOM to reduce interference with the page's own CSS.
+
+### `settings.html` / `settings.js`
+
+Extension-only Quick Cipher settings page.
+
+It:
+
+- displays the global Quick Cipher trigger reported by `chrome.commands.getAll()`
+- links to Chrome's Extensions Shortcuts page for global-trigger changes
+- stores configurable Quick Action keys in `chrome.storage.local`
+- controls focused-editor and hovered-Google-Chat Smart Target behavior
+
+Chrome owns registered global extension shortcuts, so CipherVault does not attempt to modify the global `commands` shortcut programmatically.
 
 ---
 
@@ -478,7 +519,7 @@ Chrome Web Store/internal browser pages
 
 Cross-origin embedded frames can also be limited by browser permission boundaries.
 
-Some complex web editors implement custom input systems. `Replace Selection` uses native input/contenteditable events and should work on many sites, but individual editors may behave differently.
+Some complex web editors implement custom input systems. `Replace target` uses native input/contenteditable events and should work on many sites, but individual editors may behave differently.
 
 If the default shortcut conflicts with another extension or application, remap it at:
 
@@ -491,13 +532,16 @@ chrome://extensions/shortcuts
 ## Current version
 
 ```text
-1.1.2
+1.2.0
 ```
 
-Main additions:
+Main capabilities:
 
 ```text
-Quick Cipher smart hotkey
+Quick Cipher smart global trigger
+Configurable in-bubble Quick Action keys
+Smart Target for focused editors and hovered Google Chat messages
+Keyboard Profile picker
 Google Chat multi-frame support
 Automatic Google Chat Conversation ID → Profile mapping
 Temporary popup draft recovery
