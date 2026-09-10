@@ -2,16 +2,16 @@
   "manifest_version": 3,
   "name": "CipherVault",
   "short_name": "CipherVault",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "minimum_chrome_version": "102",
-  "description": "Local AES-256-GCM encryption with Quick Cipher, Google Chat auto-profile mapping, and temporary draft recovery.",
+  "description": "Local AES-256-GCM encryption with Quick Cipher, configurable action keys, Smart Target, and Google Chat auto-profiles.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage"
   ],
   "background": {
-    "service_worker": "service-worker-v112.js"
+    "service_worker": "service-worker-v120.js"
   },
   "action": {
     "default_title": "CipherVault",
@@ -29,7 +29,7 @@
         "default": "Ctrl+Shift+Y",
         "mac": "Command+Shift+Y"
       },
-      "description": "Encrypt or decrypt the selected text with CipherVault"
+      "description": "Encrypt or decrypt the selected or Smart Target text with CipherVault"
     }
   },
   "icons": {
