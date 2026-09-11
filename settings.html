@@ -11,20 +11,20 @@
 <body>
     <main class="settings-shell">
         <header class="settings-header">
-            <a class="back-button" href="index.html" aria-label="Back to CipherVault" title="Back">←</a>
+            <a class="back-link" href="index.html" aria-label="Back to CipherVault" title="Back">←</a>
 
-            <div class="brand">
+            <div class="brand-area">
                 <img src="./icons/icon48.png" alt="" class="brand-icon">
                 <div>
-                    <h1>Cipher<span>Vault</span></h1>
-                    <p>QUICK CIPHER</p>
+                    <h1>Cipher<strong>Vault</strong></h1>
+                    <span>QUICK CIPHER</span>
                 </div>
             </div>
 
             <button id="settingsThemeToggle" class="icon-button" type="button" title="Switch theme" aria-label="Switch theme">☀</button>
         </header>
 
-        <section class="intro-card">
+        <section class="settings-intro">
             <span class="eyebrow">KEYBOARD WORKFLOW</span>
             <h2>Quick Cipher settings</h2>
             <p>Configure what happens after Quick Cipher opens, and how CipherVault finds text when nothing is selected.</p>
@@ -33,7 +33,7 @@
         <section class="settings-card">
             <div class="section-heading">
                 <div>
-                    <span class="section-number">01</span>
+                    <span class="section-index">01</span>
                     <div>
                         <h3>Global trigger</h3>
                         <p>Starts Quick Cipher from any supported page.</p>
@@ -41,7 +41,7 @@
                 </div>
             </div>
 
-            <div class="setting-row global-row">
+            <div class="global-row">
                 <div class="setting-copy">
                     <strong>Quick Cipher</strong>
                     <span>Encrypt / decrypt the current Smart Target</span>
@@ -52,7 +52,7 @@
                 </div>
             </div>
 
-            <div class="info-note">
+            <div class="notice">
                 Chrome owns global extension shortcuts. CipherVault can display the current shortcut here, but Chrome requires changes to be made on its Extensions Shortcuts page.
             </div>
         </section>
@@ -60,19 +60,19 @@
         <section class="settings-card">
             <div class="section-heading">
                 <div>
-                    <span class="section-number">02</span>
+                    <span class="section-index">02</span>
                     <div>
                         <h3>Quick actions</h3>
                         <p>These keys work only while the Quick Cipher bubble is open.</p>
                     </div>
                 </div>
-                <button id="resetActionKeys" class="tiny-button" type="button">RESET</button>
+                <button id="resetActionKeys" class="text-button" type="button">RESET</button>
             </div>
 
-            <div class="action-list">
+            <div class="key-grid">
                 <button class="key-setting" type="button" data-action="copy">
                     <span class="action-icon">⧉</span>
-                    <span class="setting-copy">
+                    <span class="key-copy">
                         <strong>Copy result</strong>
                         <span>Copy encrypted or decrypted output</span>
                     </span>
@@ -81,7 +81,7 @@
 
                 <button class="key-setting" type="button" data-action="replace">
                     <span class="action-icon">↔</span>
-                    <span class="setting-copy">
+                    <span class="key-copy">
                         <strong>Replace target</strong>
                         <span>Replace the original selection or focused editor</span>
                     </span>
@@ -90,7 +90,7 @@
 
                 <button class="key-setting" type="button" data-action="profile">
                     <span class="action-icon">◎</span>
-                    <span class="setting-copy">
+                    <span class="key-copy">
                         <strong>Profile picker</strong>
                         <span>Retry the current text with another Profile</span>
                     </span>
@@ -99,7 +99,7 @@
 
                 <button class="key-setting" type="button" data-action="close">
                     <span class="action-icon">×</span>
-                    <span class="setting-copy">
+                    <span class="key-copy">
                         <strong>Close bubble</strong>
                         <span>Dismiss Quick Cipher without changing text</span>
                     </span>
@@ -116,7 +116,7 @@
         <section class="settings-card">
             <div class="section-heading">
                 <div>
-                    <span class="section-number">03</span>
+                    <span class="section-index">03</span>
                     <div>
                         <h3>Smart Target</h3>
                         <p>Used only when you did not explicitly select text.</p>
@@ -124,22 +124,22 @@
                 </div>
             </div>
 
-            <label class="toggle-row">
-                <span class="setting-copy">
+            <label class="toggle-row" data-setting-row="focusedEditor">
+                <span>
                     <strong>Focused editor</strong>
                     <span>Use the whole current input / textarea / contenteditable draft.</span>
                 </span>
                 <input id="smartFocusedEditor" type="checkbox">
-                <span class="switch" aria-hidden="true"></span>
+                <span class="toggle" aria-hidden="true"></span>
             </label>
 
-            <label class="toggle-row">
-                <span class="setting-copy">
+            <label class="toggle-row" data-setting-row="hoveredGoogleChat">
+                <span>
                     <strong>Hovered Google Chat message</strong>
-                    <span>Point at a message and run Quick Cipher without selecting it.</span>
+                    <span>Point at one message and run Quick Cipher without selecting it.</span>
                 </span>
                 <input id="smartHoveredGoogleChat" type="checkbox">
-                <span class="switch" aria-hidden="true"></span>
+                <span class="toggle" aria-hidden="true"></span>
             </label>
 
             <div class="priority-box">
@@ -157,8 +157,8 @@
         </section>
 
         <footer class="settings-footer">
-            <span>v1.2.0</span>
-            <span>LOCAL ONLY · AES-256-GCM</span>
+            <span>v1.2.3</span>
+            <span> · LOCAL ONLY · AES-256-GCM</span>
         </footer>
     </main>
 
