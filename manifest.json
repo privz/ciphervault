@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "CipherVault",
   "short_name": "CipherVault",
-  "version": "1.2.3",
+  "version": "1.3.0",
   "minimum_chrome_version": "102",
   "description": "Local AES-256-GCM encryption with Quick Cipher, configurable action keys, Smart Target, and Google Chat auto-profiles.",
   "permissions": [
@@ -11,7 +11,7 @@
     "storage"
   ],
   "background": {
-    "service_worker": "service-worker-v123.js"
+    "service_worker": "service-worker-v130.js"
   },
   "action": {
     "default_title": "CipherVault",
